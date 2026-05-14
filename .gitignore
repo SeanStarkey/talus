@@ -1,0 +1,34 @@
+# Build directories
+build/
+out/
+cmake-build-*/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+
+# Compiled output
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Claude Code
+.claude/
+
+# Project-specific
+PROMPT.md
