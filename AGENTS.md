@@ -71,6 +71,7 @@ Nodes are `alignas(64)` structs (one cache line). The union between `children` (
 - Do not revert unrelated changes.
 - Read nearby code before editing, and follow existing patterns.
 - Summarize changed behavior and verification steps when finishing work.
+- Update PLAN.md with any changes.
 - If tests cannot be run because none exist, say so and describe the manual check used instead.
 - When Codex makes code changes and is asked to create a git commit, include `Co-authored-by: Codex <codex@openai.com>` in the commit message.
 - Do not add the Codex co-author trailer for commits that only contain user-authored work or by other AIs.

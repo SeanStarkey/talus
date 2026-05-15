@@ -15,17 +15,17 @@ The R-tree implementation has not started yet. The following directory exists bu
 
 The following scaffolding directories currently contain placeholder CMake files:
 
-- `tests/`
 - `examples/`
 - `benchmarks/`
 
-A lightweight GCC 13.3 header syntax check passed for the current public headers. CMake configure and build now pass with default options, tests disabled, and examples/benchmarks enabled. `ctest` currently reports that no tests were found, which is expected until test targets are added.
+The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include.
+
+CMake configure and build pass with default options, tests disabled, and examples/benchmarks enabled. `ctest` passes with the current foundation smoke test target.
 
 ## Immediate Issues
 
 1. `concepts.hpp` is currently hard-wired to `BoundingBox<double>` for `HasBounds`, `CoordExtractor`, and `bounding_box_of()`. This should be reconciled with the planned `SpatialIndex<T, Scalar, MaxChildren>` API.
 2. Types satisfying both `Pointlike` and `HasBounds` may make `bounding_box_of()` overload resolution ambiguous.
-3. There are no real tests yet; `ctest` passes only because no test targets exist.
 
 ## Recommended Work Plan
 
@@ -33,7 +33,7 @@ A lightweight GCC 13.3 header syntax check passed for the current public headers
 
 - Completed: add placeholder `tests/CMakeLists.txt`, `examples/CMakeLists.txt`, and `benchmarks/CMakeLists.txt`.
 - Completed: add `include/talus/talus.hpp` that includes all current public headers.
-- Add basic smoke tests for `geometry.hpp` and `concepts.hpp`.
+- Completed: add basic smoke tests for `geometry.hpp`, `concepts.hpp`, and the umbrella include.
 
 ### 2. Harden Foundation APIs
 
@@ -107,4 +107,4 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Add foundation tests, then adjust `concepts.hpp` for the intended scalar model before implementing `pool_alloc.hpp`.
+Adjust `concepts.hpp` for the intended scalar model before implementing `pool_alloc.hpp`.
