@@ -6,32 +6,33 @@ Talus is currently a clean Phase 1 skeleton. The implemented project surface is:
 
 - `include/talus/geometry.hpp`
 - `include/talus/concepts.hpp`
+- `include/talus/talus.hpp`
 - `CMakeLists.txt`
 
-The R-tree implementation has not started yet. The following directories exist but are empty:
+The R-tree implementation has not started yet. The following directory exists but is empty:
 
 - `include/talus/detail/`
+
+The following scaffolding directories currently contain placeholder CMake files:
+
 - `tests/`
 - `examples/`
 - `benchmarks/`
 
-A lightweight GCC 13.3 header syntax check passed for the current geometry and concepts headers. CMake could not be validated in the current environment because `cmake` was not installed.
+A lightweight GCC 13.3 header syntax check passed for the current public headers. CMake configure and build now pass with default options, tests disabled, and examples/benchmarks enabled. `ctest` currently reports that no tests were found, which is expected until test targets are added.
 
 ## Immediate Issues
 
-1. Top-level CMake likely fails in a normal environment because `TALUS_BUILD_TESTS` defaults to `ON`, but `tests/` has no `CMakeLists.txt`.
-2. `examples/` and `benchmarks/` have the same issue if `TALUS_BUILD_EXAMPLES` or `TALUS_BUILD_BENCHMARKS` are enabled.
-3. `concepts.hpp` is currently hard-wired to `BoundingBox<double>` for `HasBounds`, `CoordExtractor`, and `bounding_box_of()`. This should be reconciled with the planned `SpatialIndex<T, Scalar, MaxChildren>` API.
-4. Types satisfying both `Pointlike` and `HasBounds` may make `bounding_box_of()` overload resolution ambiguous.
-5. The single-include public entry point `include/talus/talus.hpp` does not exist yet.
+1. `concepts.hpp` is currently hard-wired to `BoundingBox<double>` for `HasBounds`, `CoordExtractor`, and `bounding_box_of()`. This should be reconciled with the planned `SpatialIndex<T, Scalar, MaxChildren>` API.
+2. Types satisfying both `Pointlike` and `HasBounds` may make `bounding_box_of()` overload resolution ambiguous.
+3. There are no real tests yet; `ctest` passes only because no test targets exist.
 
 ## Recommended Work Plan
 
 ### 1. Stabilize Build and Test Scaffolding
 
-- Add `tests/CMakeLists.txt`, or guard `add_subdirectory(tests)` on the file existing.
-- Add placeholder `examples/CMakeLists.txt` and `benchmarks/CMakeLists.txt`, or guard those subdirectories too.
-- Add `include/talus/talus.hpp` that includes all public headers.
+- Completed: add placeholder `tests/CMakeLists.txt`, `examples/CMakeLists.txt`, and `benchmarks/CMakeLists.txt`.
+- Completed: add `include/talus/talus.hpp` that includes all current public headers.
 - Add basic smoke tests for `geometry.hpp` and `concepts.hpp`.
 
 ### 2. Harden Foundation APIs
@@ -106,4 +107,4 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Fix the build scaffolding and add foundation tests, then adjust `concepts.hpp` for the intended scalar model before implementing `pool_alloc.hpp`.
+Add foundation tests, then adjust `concepts.hpp` for the intended scalar model before implementing `pool_alloc.hpp`.
