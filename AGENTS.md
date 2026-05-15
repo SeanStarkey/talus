@@ -65,3 +65,12 @@ Nodes are `alignas(64)` structs (one cache line). The union between `children` (
 - **C++20 required** — concepts, ranges, and `std::variant` are used freely.
 - **Header-only** — no `.cpp` files in `include/`. Template implementations go in the same `.hpp` or in `detail/` headers included at the bottom of the public header.
 - The single-include entry point will be `include/talus/talus.hpp` (not yet created) — it will `#include` all public headers.
+
+## Git And Collaboration
+
+- Do not revert unrelated changes.
+- Read nearby code before editing, and follow existing patterns.
+- Summarize changed behavior and verification steps when finishing work.
+- If tests cannot be run because none exist, say so and describe the manual check used instead.
+- When Codex makes code changes and is asked to create a git commit, include `Co-authored-by: Codex <codex@openai.com>` in the commit message.
+- Do not add the Codex co-author trailer for commits that only contain user-authored work or by other AIs.
