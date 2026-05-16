@@ -18,14 +18,11 @@ The following scaffolding directories currently contain placeholder CMake files:
 - `examples/`
 - `benchmarks/`
 
+The concept layer now supports scalar-aware bounding-box extraction and gives `.bounds()` precedence over point fields when a type satisfies both.
+
 The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include.
 
 CMake configure and build pass with default options, tests disabled, and examples/benchmarks enabled. `ctest` passes with the current foundation smoke test target.
-
-## Immediate Issues
-
-1. `concepts.hpp` is currently hard-wired to `BoundingBox<double>` for `HasBounds`, `CoordExtractor`, and `bounding_box_of()`. This should be reconciled with the planned `SpatialIndex<T, Scalar, MaxChildren>` API.
-2. Types satisfying both `Pointlike` and `HasBounds` may make `bounding_box_of()` overload resolution ambiguous.
 
 ## Recommended Work Plan
 
@@ -37,9 +34,9 @@ CMake configure and build pass with default options, tests disabled, and example
 
 ### 2. Harden Foundation APIs
 
-- Decide whether the index internals are always `double` or whether `Scalar` is supported end-to-end.
-- If `Scalar` is real, make coordinate extraction scalar-aware.
-- Resolve `Pointlike && HasBounds` precedence explicitly.
+- Completed: use `Scalar` for index internals and coordinate extraction.
+- Completed: make `HasBounds`, `Indexable`, `CoordExtractor`, and `bounding_box_of()` scalar-aware.
+- Completed: resolve `Pointlike && HasBounds` precedence by preferring `.bounds()`.
 - Add tests for:
   - point equality
   - bounding-box containment
@@ -51,6 +48,8 @@ CMake configure and build pass with default options, tests disabled, and example
   - minimum squared distance
   - segment bounds
   - `.x/.y`, `.lat/.lon`, and `.bounds()` extraction
+  - scalar-aware extraction
+  - `.bounds()` precedence over point fields
 
 ### 3. Implement R-tree Storage Primitives
 
@@ -107,4 +106,4 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Adjust `concepts.hpp` for the intended scalar model before implementing `pool_alloc.hpp`.
+Implement `include/talus/detail/pool_alloc.hpp`.

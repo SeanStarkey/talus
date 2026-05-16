@@ -21,9 +21,30 @@ struct BoundedObject {
     }
 };
 
+struct BoundedFloatObject {
+    constexpr talus::BoundingBox<float> bounds() const noexcept {
+        return {{-1.0F, -2.0F}, {3.0F, 4.0F}};
+    }
+};
+
+struct PointWithBounds {
+    double x;
+    double y;
+
+    constexpr talus::BoundingBox<double> bounds() const noexcept {
+        return {{-5.0, -6.0}, {7.0, 8.0}};
+    }
+};
+
 struct CustomExtractor {
     constexpr talus::BoundingBox<double> operator()(const XYPoint& point) const noexcept {
         return {{point.x, static_cast<double>(point.y)}, {point.x, static_cast<double>(point.y)}};
+    }
+};
+
+struct FloatExtractor {
+    constexpr talus::BoundingBox<float> operator()(const XYPoint& point) const noexcept {
+        return {{point.x, static_cast<float>(point.y)}, {point.x, static_cast<float>(point.y)}};
     }
 };
 
@@ -32,12 +53,17 @@ static_assert(!talus::HasLatLon<XYPoint>);
 static_assert(talus::HasLatLon<LatLonPoint>);
 static_assert(!talus::HasXY<LatLonPoint>);
 static_assert(talus::HasBounds<BoundedObject>);
+static_assert(talus::HasBounds<BoundedFloatObject, float>);
+static_assert(talus::HasBounds<PointWithBounds>);
 static_assert(talus::Pointlike<XYPoint>);
 static_assert(talus::Pointlike<LatLonPoint>);
+static_assert(talus::Pointlike<PointWithBounds>);
 static_assert(talus::Indexable<XYPoint>);
 static_assert(talus::Indexable<LatLonPoint>);
 static_assert(talus::Indexable<BoundedObject>);
+static_assert(talus::Indexable<BoundedFloatObject, float>);
 static_assert(talus::CoordExtractor<CustomExtractor, XYPoint>);
+static_assert(talus::CoordExtractor<FloatExtractor, XYPoint, float>);
 
 void test_geometry() {
     using talus::BoundingBox;
@@ -78,11 +104,23 @@ void test_concepts() {
     constexpr auto xy_box = talus::bounding_box_of(XYPoint{1.5F, 2});
     static_assert(xy_box == talus::BoundingBox<double>{{1.5, 2.0}, {1.5, 2.0}});
 
+    constexpr auto xy_float_box = talus::bounding_box_of<float>(XYPoint{1.5F, 2});
+    static_assert(xy_float_box == talus::BoundingBox<float>{{1.5F, 2.0F}, {1.5F, 2.0F}});
+
     constexpr auto lat_lon_box = talus::bounding_box_of(LatLonPoint{40.0, -105.0});
     static_assert(lat_lon_box == talus::BoundingBox<double>{{-105.0, 40.0}, {-105.0, 40.0}});
 
+    constexpr auto lat_lon_float_box = talus::bounding_box_of<float>(LatLonPoint{40.0, -105.0});
+    static_assert(lat_lon_float_box == talus::BoundingBox<float>{{-105.0F, 40.0F}, {-105.0F, 40.0F}});
+
     constexpr auto bounded_box = talus::bounding_box_of(BoundedObject{});
     static_assert(bounded_box == talus::BoundingBox<double>{{-1.0, -2.0}, {3.0, 4.0}});
+
+    constexpr auto bounded_float_box = talus::bounding_box_of<float>(BoundedFloatObject{});
+    static_assert(bounded_float_box == talus::BoundingBox<float>{{-1.0F, -2.0F}, {3.0F, 4.0F}});
+
+    constexpr auto point_with_bounds_box = talus::bounding_box_of(PointWithBounds{1.0, 2.0});
+    static_assert(point_with_bounds_box == talus::BoundingBox<double>{{-5.0, -6.0}, {7.0, 8.0}});
 }
 
 } // namespace

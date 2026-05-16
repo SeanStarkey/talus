@@ -19,10 +19,10 @@ concept HasLatLon = requires(T t) {
     { t.lon } -> std::convertible_to<double>;
 };
 
-// Anything that exposes a .bounds() returning a BoundingBox (e.g., Segment).
-template<typename T>
-concept HasBounds = requires(T t) {
-    { t.bounds() } -> std::convertible_to<BoundingBox<double>>;
+// Anything that exposes a .bounds() returning a BoundingBox at Scalar precision.
+template<typename T, typename Scalar = double>
+concept HasBounds = requires(const T& t) {
+    { t.bounds() } -> std::convertible_to<BoundingBox<Scalar>>;
 };
 
 // A type that looks like a point — matched by field names, no boilerplate needed.
@@ -30,36 +30,39 @@ template<typename T>
 concept Pointlike = HasXY<T> || HasLatLon<T>;
 
 // A type that can be placed into the spatial index: either a point or a bounded geometry.
-template<typename T>
-concept Indexable = Pointlike<T> || HasBounds<T>;
+template<typename T, typename Scalar = double>
+concept Indexable = Pointlike<T> || HasBounds<T, Scalar>;
 
-// Escape hatch: a callable that extracts a BoundingBox<double> from T.
+// Escape hatch: a callable that extracts a BoundingBox at Scalar precision from T.
 // Use when T doesn't satisfy any of the concepts above.
-template<typename Extractor, typename T>
+template<typename Extractor, typename T, typename Scalar = double>
 concept CoordExtractor = requires(Extractor e, const T& t) {
-    { e(t) } -> std::convertible_to<BoundingBox<double>>;
+    { e(t) } -> std::convertible_to<BoundingBox<Scalar>>;
 };
 
 // ── Coordinate extraction helpers ─────────────────────────────────────────────
 // These are used internally so the tree never needs to special-case HasXY vs HasLatLon.
 
-template<Pointlike T>
-[[nodiscard]] constexpr BoundingBox<double> bounding_box_of(const T& v) noexcept {
+template<typename Scalar = double, Pointlike T>
+    requires (!HasBounds<T, Scalar>)
+[[nodiscard]] constexpr BoundingBox<Scalar> bounding_box_of(const T& v) noexcept {
     if constexpr (HasXY<T>) {
-        double x = static_cast<double>(v.x);
-        double y = static_cast<double>(v.y);
+        Scalar x = static_cast<Scalar>(v.x);
+        Scalar y = static_cast<Scalar>(v.y);
         return {{x, y}, {x, y}};
     } else {
         // HasLatLon — treat lon as x, lat as y (standard geographic convention)
-        double x = static_cast<double>(v.lon);
-        double y = static_cast<double>(v.lat);
+        Scalar x = static_cast<Scalar>(v.lon);
+        Scalar y = static_cast<Scalar>(v.lat);
         return {{x, y}, {x, y}};
     }
 }
 
-template<HasBounds T>
-[[nodiscard]] constexpr BoundingBox<double> bounding_box_of(const T& v) {
-    return static_cast<BoundingBox<double>>(v.bounds());
+// Bounds take precedence over point fields when a type satisfies both concepts.
+template<typename Scalar = double, typename T>
+    requires HasBounds<T, Scalar>
+[[nodiscard]] constexpr BoundingBox<Scalar> bounding_box_of(const T& v) {
+    return static_cast<BoundingBox<Scalar>>(v.bounds());
 }
 
 } // namespace talus
