@@ -37,19 +37,7 @@ CMake configure and build pass with default options, tests disabled, and example
 - Completed: use `Scalar` for index internals and coordinate extraction.
 - Completed: make `HasBounds`, `Indexable`, `CoordExtractor`, and `bounding_box_of()` scalar-aware.
 - Completed: resolve `Pointlike && HasBounds` precedence by preferring `.bounds()`.
-- Add tests for:
-  - point equality
-  - bounding-box containment
-  - edge-touching intersections
-  - expansion
-  - area
-  - enlarged area
-  - center
-  - minimum squared distance
-  - segment bounds
-  - `.x/.y`, `.lat/.lon`, and `.bounds()` extraction
-  - scalar-aware extraction
-  - `.bounds()` precedence over point fields
+- Completed: add tests for point equality, bounding-box containment, edge-touching intersections, expansion, area, enlarged area, center, minimum squared distance, segment bounds, `.x/.y`/`.lat/.lon`/`.bounds()` extraction, scalar-aware extraction, and `.bounds()` precedence over point fields.
 
 ### 3. Implement R-tree Storage Primitives
 
