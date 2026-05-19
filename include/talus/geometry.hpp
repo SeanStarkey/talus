@@ -15,34 +15,43 @@ namespace talus {
 
 // ── Point ─────────────────────────────────────────────────────────────────────
 
+/// @brief Two-dimensional point using the selected scalar precision.
 template<typename Scalar = double>
 struct Point {
+    /// Horizontal coordinate.
     Scalar x{};
+
+    /// Vertical coordinate.
     Scalar y{};
 
+    /// @brief Compares points by coordinate value.
     constexpr bool operator==(const Point&) const noexcept = default;
 };
 
 // ── BoundingBox ───────────────────────────────────────────────────────────────
 
+/// @brief Axis-aligned bounding box described by minimum and maximum corners.
 template<typename Scalar = double>
 struct BoundingBox {
+    /// Lower-left corner of the box.
     Point<Scalar> min{};
+
+    /// Upper-right corner of the box.
     Point<Scalar> max{};
 
-    // True if p lies inside or on the boundary of this box.
+    /// @brief Returns true when `p` lies inside or on the boundary.
     [[nodiscard]] constexpr bool contains(Point<Scalar> p) const noexcept {
         return p.x >= min.x && p.x <= max.x
             && p.y >= min.y && p.y <= max.y;
     }
 
-    // True if the two boxes share any area (touching edges count).
+    /// @brief Returns true when two boxes overlap or touch at an edge.
     [[nodiscard]] constexpr bool intersects(BoundingBox other) const noexcept {
         return min.x <= other.max.x && max.x >= other.min.x
             && min.y <= other.max.y && max.y >= other.min.y;
     }
 
-    // Smallest box that encloses both this box and other.
+    /// @brief Returns the smallest box that encloses this box and `other`.
     [[nodiscard]] constexpr BoundingBox expand(BoundingBox other) const noexcept {
         return {
             {std::min(min.x, other.min.x), std::min(min.y, other.min.y)},
@@ -50,23 +59,27 @@ struct BoundingBox {
         };
     }
 
+    /// @brief Returns the box area, or zero for empty or inverted boxes.
     [[nodiscard]] constexpr Scalar area() const noexcept {
         Scalar dx = max.x - min.x;
         Scalar dy = max.y - min.y;
         return (dx > Scalar{0} && dy > Scalar{0}) ? dx * dy : Scalar{0};
     }
 
-    // How much the area would grow if we expanded to enclose other.
+    /// @brief Returns the area growth required to enclose `other`.
     [[nodiscard]] constexpr Scalar enlarged_area(BoundingBox other) const noexcept {
         return expand(other).area() - area();
     }
 
+    /// @brief Returns the midpoint between the box corners.
     [[nodiscard]] constexpr Point<Scalar> center() const noexcept {
         return {(min.x + max.x) / Scalar{2}, (min.y + max.y) / Scalar{2}};
     }
 
-    // Minimum squared distance from point p to the nearest point on (or inside) this box.
-    // Returns 0 when p is inside.
+    /// @brief Returns the minimum squared distance from `p` to this box.
+    ///
+    /// The result is zero when `p` is inside the box. Squared distance avoids a
+    /// square root in nearest-neighbor comparisons.
     [[nodiscard]] constexpr Scalar min_sq_distance(Point<Scalar> p) const noexcept {
         auto clamp = [](Scalar v, Scalar lo, Scalar hi) constexpr noexcept {
             return v < lo ? lo : (v > hi ? hi : v);
@@ -78,16 +91,22 @@ struct BoundingBox {
         return dx * dx + dy * dy;
     }
 
+    /// @brief Compares boxes by corner value.
     constexpr bool operator==(const BoundingBox&) const noexcept = default;
 };
 
 // ── Segment ───────────────────────────────────────────────────────────────────
 
+/// @brief Line segment represented by two endpoints.
 template<typename Scalar = double>
 struct Segment {
+    /// First endpoint.
     Point<Scalar> start{};
+
+    /// Second endpoint.
     Point<Scalar> end{};
 
+    /// @brief Returns the smallest bounding box that encloses the segment.
     [[nodiscard]] constexpr BoundingBox<Scalar> bounds() const noexcept {
         return {
             {std::min(start.x, end.x), std::min(start.y, end.y)},
@@ -95,11 +114,13 @@ struct Segment {
         };
     }
 
+    /// @brief Compares segments by endpoint value.
     constexpr bool operator==(const Segment&) const noexcept = default;
 };
 
 // ── Free-function helpers ─────────────────────────────────────────────────────
 
+/// @brief Returns squared Euclidean distance between two points.
 template<typename Scalar>
 [[nodiscard]] constexpr Scalar sq_distance(Point<Scalar> a, Point<Scalar> b) noexcept {
     Scalar dx = a.x - b.x;
@@ -107,6 +128,7 @@ template<typename Scalar>
     return dx * dx + dy * dy;
 }
 
+/// @brief Returns Euclidean distance between two points.
 template<typename Scalar>
 [[nodiscard]] Scalar distance(Point<Scalar> a, Point<Scalar> b) {
     return std::sqrt(sq_distance(a, b));

@@ -18,20 +18,31 @@
 
 namespace talus::detail {
 
+/// @brief Fixed-size block allocator for address-stable objects.
+///
+/// Objects are constructed on demand in contiguous blocks and destroyed
+/// explicitly. Freed slots are reused before new block capacity is consumed.
 template<typename T, std::size_t BlockSize = 256>
 class PoolAllocator {
     static_assert(BlockSize > 0);
 
 public:
+    /// Object type managed by this allocator.
     using value_type = T;
 
+    /// @brief Constructs an empty pool.
     PoolAllocator() = default;
 
+    /// Pools own object storage and cannot be copied.
     PoolAllocator(const PoolAllocator&) = delete;
+
+    /// Pools own object storage and cannot be copied.
     PoolAllocator& operator=(const PoolAllocator&) = delete;
 
+    /// @brief Moves pool storage and live objects without relocating objects.
     PoolAllocator(PoolAllocator&&) noexcept = default;
 
+    /// @brief Clears this pool and takes ownership of another pool's blocks.
     PoolAllocator& operator=(PoolAllocator&& other) noexcept(std::is_nothrow_destructible_v<T>) {
         if (this == &other) {
             return *this;
@@ -51,10 +62,14 @@ public:
         return *this;
     }
 
+    /// @brief Destroys all live objects and releases all blocks.
     ~PoolAllocator() {
         clear();
     }
 
+    /// @brief Constructs an object in pool storage and returns its address.
+    ///
+    /// If construction throws, the acquired slot is returned to the allocator.
     template<typename... Args>
     [[nodiscard]] T* create(Args&&... args) {
         Slot slot = acquire_slot();
@@ -72,6 +87,10 @@ public:
         return object;
     }
 
+    /// @brief Destroys a live object and makes its slot reusable.
+    ///
+    /// Passing null is a no-op. Non-null pointers must have been returned by
+    /// this allocator and still be live.
     void destroy(T* object) {
         if (object == nullptr) {
             return;
@@ -87,6 +106,7 @@ public:
         --size_;
     }
 
+    /// @brief Destroys live objects while retaining allocated blocks for reuse.
     void reset() noexcept(std::is_nothrow_destructible_v<T>) {
         destroy_live_objects();
         current_block_ = 0;
@@ -95,6 +115,7 @@ public:
         size_ = 0;
     }
 
+    /// @brief Destroys live objects and releases all allocated blocks.
     void clear() noexcept(std::is_nothrow_destructible_v<T>) {
         destroy_live_objects();
         blocks_.clear();
@@ -104,18 +125,22 @@ public:
         size_ = 0;
     }
 
+    /// @brief Returns the number of currently live objects.
     [[nodiscard]] std::size_t size() const noexcept {
         return size_;
     }
 
+    /// @brief Returns true when no objects are live.
     [[nodiscard]] bool empty() const noexcept {
         return size_ == 0;
     }
 
+    /// @brief Returns the number of allocated blocks.
     [[nodiscard]] std::size_t block_count() const noexcept {
         return blocks_.size();
     }
 
+    /// @brief Returns total object slots across allocated blocks.
     [[nodiscard]] std::size_t capacity() const noexcept {
         return blocks_.size() * BlockSize;
     }

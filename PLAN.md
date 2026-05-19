@@ -24,6 +24,9 @@ The concept layer now supports scalar-aware bounding-box extraction and gives `.
 All current library headers now include file-level comment headers that describe
 their purpose and ownership boundaries.
 
+Public structures, concepts, helpers, and storage methods now include
+Doxygen-style comments for generated API documentation.
+
 The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, plus focused pool allocator and R-tree node storage tests.
 
 CMake configure, build, and `ctest` pass with the current foundation, pool allocator, and node storage test targets.
