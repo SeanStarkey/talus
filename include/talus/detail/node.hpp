@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <memory>
 #include <new>
+#include <span>
 #include <type_traits>
 #include <utility>
 
@@ -170,6 +171,30 @@ public:
     [[nodiscard]] BoundingBox<Scalar> entry_bounds_at(std::size_t index) const noexcept {
         assert(index < count_);
         return is_leaf_ ? value_entry(index)->bounds : child_entry(index)->bounds;
+    }
+
+    [[nodiscard]] std::span<value_entry_type> values() noexcept {
+        assert(is_leaf_);
+        if (count_ == 0) return {};
+        return {value_entry(0), count_};
+    }
+
+    [[nodiscard]] std::span<const value_entry_type> values() const noexcept {
+        assert(is_leaf_);
+        if (count_ == 0) return {};
+        return {value_entry(0), count_};
+    }
+
+    [[nodiscard]] std::span<child_entry_type> children() noexcept {
+        assert(!is_leaf_);
+        if (count_ == 0) return {};
+        return {child_entry(0), count_};
+    }
+
+    [[nodiscard]] std::span<const child_entry_type> children() const noexcept {
+        assert(!is_leaf_);
+        if (count_ == 0) return {};
+        return {child_entry(0), count_};
     }
 
     void remove_at(std::size_t index) {

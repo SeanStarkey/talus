@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -341,6 +342,53 @@ void test_reset_clears_own_parent_pointer() {
     assert(child.parent() == nullptr);
 }
 
+void test_leaf_values_span_supports_range_iteration() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node;
+    assert(node.values().empty());
+
+    node.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 10);
+    node.append_value(Box{{2.0, 2.0}, {3.0, 3.0}}, 20);
+    node.append_value(Box{{4.0, 4.0}, {5.0, 5.0}}, 30);
+
+    int sum = 0;
+    for (auto& entry : node.values()) {
+        sum += entry.value;
+    }
+    assert(sum == 60);
+    assert(node.values().size() == 3);
+
+    // const path
+    const Node& cnode = node;
+    int csum = 0;
+    for (const auto& entry : cnode.values()) {
+        csum += entry.value;
+    }
+    assert(csum == 60);
+}
+
+void test_internal_children_span_supports_range_iteration() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node parent(false);
+    assert(parent.children().empty());
+
+    Node a, b, c;
+    parent.append_child(Box{{0.0, 0.0}, {1.0, 1.0}}, &a);
+    parent.append_child(Box{{2.0, 2.0}, {3.0, 3.0}}, &b);
+    parent.append_child(Box{{4.0, 4.0}, {5.0, 5.0}}, &c);
+
+    std::vector<Node*> collected;
+    for (auto& entry : parent.children()) {
+        collected.push_back(entry.child);
+    }
+    assert(collected.size() == 3);
+    assert(collected[0] == &a);
+    assert(collected[1] == &b);
+    assert(collected[2] == &c);
+}
+
 void test_pool_allocator_returns_aligned_nodes() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -370,5 +418,7 @@ int main() {
     test_remove_at_leaf_tracks_lifetimes();
     test_remove_at_internal_clears_child_parent();
     test_reset_clears_own_parent_pointer();
+    test_leaf_values_span_supports_range_iteration();
+    test_internal_children_span_supports_range_iteration();
     test_pool_allocator_returns_aligned_nodes();
 }
