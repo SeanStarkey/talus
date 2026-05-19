@@ -167,6 +167,11 @@ public:
         return *child_entry(index);
     }
 
+    [[nodiscard]] BoundingBox<Scalar> entry_bounds_at(std::size_t index) const noexcept {
+        assert(index < count_);
+        return is_leaf_ ? value_entry(index)->bounds : child_entry(index)->bounds;
+    }
+
     void remove_at(std::size_t index) {
         assert(index < count_);
 
@@ -271,10 +276,6 @@ private:
     [[nodiscard]] const child_entry_type* child_entry(std::size_t index) const noexcept {
         return std::launder(reinterpret_cast<const child_entry_type*>(
             storage_.children + sizeof(child_entry_type) * index));
-    }
-
-    [[nodiscard]] BoundingBox<Scalar> entry_bounds_at(std::size_t index) const noexcept {
-        return is_leaf_ ? value_entry(index)->bounds : child_entry(index)->bounds;
     }
 
     constexpr void append_bounds(BoundingBox<Scalar> entry_bounds) noexcept {
