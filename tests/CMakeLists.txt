@@ -13,3 +13,11 @@ add_executable(talus_pool_alloc_tests
 target_link_libraries(talus_pool_alloc_tests PRIVATE talus::talus)
 
 add_test(NAME talus_pool_alloc_tests COMMAND talus_pool_alloc_tests)
+
+add_executable(talus_node_tests
+    node_tests.cpp
+)
+
+target_link_libraries(talus_node_tests PRIVATE talus::talus)
+
+add_test(NAME talus_node_tests COMMAND talus_node_tests)

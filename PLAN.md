@@ -8,10 +8,11 @@ Talus is currently a clean Phase 1 skeleton. The implemented project surface is:
 - `include/talus/concepts.hpp`
 - `include/talus/talus.hpp`
 - `include/talus/detail/pool_alloc.hpp`
+- `include/talus/detail/node.hpp`
 - `CMakeLists.txt`
 
-The R-tree implementation has started with storage primitives. Higher-level
-R-tree node layout and algorithms have not started yet.
+The R-tree implementation has started with storage primitives. The node layout
+is in place; higher-level R-tree algorithms have not started yet.
 
 The following scaffolding directories currently contain placeholder CMake files:
 
@@ -20,9 +21,9 @@ The following scaffolding directories currently contain placeholder CMake files:
 
 The concept layer now supports scalar-aware bounding-box extraction and gives `.bounds()` precedence over point fields when a type satisfies both.
 
-The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, plus focused pool allocator tests.
+The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, plus focused pool allocator and R-tree node storage tests.
 
-CMake configure and build pass with default options, tests disabled, and examples/benchmarks enabled. `ctest` passes with the current foundation smoke test target.
+CMake configure, build, and `ctest` pass with the current foundation, pool allocator, and node storage test targets.
 
 ## Recommended Work Plan
 
@@ -42,9 +43,9 @@ CMake configure and build pass with default options, tests disabled, and example
 ### 3. Implement R-tree Storage Primitives
 
 - Completed: add `include/talus/detail/pool_alloc.hpp`.
-- Add `include/talus/detail/node.hpp`.
+- Completed: add `include/talus/detail/node.hpp`.
 - Completed: test pool allocation, reset/clear behavior, slot reuse, alignment, and capacity.
-- Test node alignment, node capacity, and leaf/internal invariants.
+- Completed: test node alignment, node capacity, leaf/internal invariants, parent links, and non-trivial/move-only value storage.
 - Keep this layer independent from the higher-level tree algorithms where practical.
 - Preserve a serialization-friendly and large-dataset-friendly design: keep persistent formats pointer-free, keep pool block size tunable, and avoid public APIs that expose node addresses as durable IDs.
 - Add a pool reserve/preallocation API before large-scale bulk loading so large builds can allocate capacity up front, reduce metadata growth overhead, and fail early on out-of-memory.
@@ -97,4 +98,4 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Implement `include/talus/detail/node.hpp`.
+Implement `include/talus/rtree.hpp` and the first minimal R-tree insertion/search path, starting with `detail/algorithms.hpp` helpers for ChooseLeaf, Insert, SplitNode, AdjustTree, and Search.
