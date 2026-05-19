@@ -245,31 +245,32 @@ public:
     }
 
 private:
-    using value_storage_type = std::aligned_storage_t<sizeof(value_entry_type), alignof(value_entry_type)>;
-    using child_storage_type = std::aligned_storage_t<sizeof(child_entry_type), alignof(child_entry_type)>;
-
     union EntryStorage {
         constexpr EntryStorage() noexcept {}
         ~EntryStorage() {}
 
-        value_storage_type values[entry_capacity];
-        child_storage_type children[entry_capacity];
+        alignas(value_entry_type) std::byte values[sizeof(value_entry_type) * entry_capacity];
+        alignas(child_entry_type) std::byte children[sizeof(child_entry_type) * entry_capacity];
     };
 
     [[nodiscard]] value_entry_type* value_entry(std::size_t index) noexcept {
-        return std::launder(reinterpret_cast<value_entry_type*>(&storage_.values[index]));
+        return std::launder(reinterpret_cast<value_entry_type*>(
+            storage_.values + sizeof(value_entry_type) * index));
     }
 
     [[nodiscard]] const value_entry_type* value_entry(std::size_t index) const noexcept {
-        return std::launder(reinterpret_cast<const value_entry_type*>(&storage_.values[index]));
+        return std::launder(reinterpret_cast<const value_entry_type*>(
+            storage_.values + sizeof(value_entry_type) * index));
     }
 
     [[nodiscard]] child_entry_type* child_entry(std::size_t index) noexcept {
-        return std::launder(reinterpret_cast<child_entry_type*>(&storage_.children[index]));
+        return std::launder(reinterpret_cast<child_entry_type*>(
+            storage_.children + sizeof(child_entry_type) * index));
     }
 
     [[nodiscard]] const child_entry_type* child_entry(std::size_t index) const noexcept {
-        return std::launder(reinterpret_cast<const child_entry_type*>(&storage_.children[index]));
+        return std::launder(reinterpret_cast<const child_entry_type*>(
+            storage_.children + sizeof(child_entry_type) * index));
     }
 
     [[nodiscard]] BoundingBox<Scalar> entry_bounds_at(std::size_t index) const noexcept {
