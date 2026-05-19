@@ -216,6 +216,113 @@ void test_reset_changes_node_kind_after_destroying_active_entries() {
     assert(child.parent() == nullptr);
 }
 
+void test_remove_at_leaf_swaps_last_into_gap() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node;
+    node.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 10);
+    node.append_value(Box{{2.0, 2.0}, {3.0, 3.0}}, 20);
+    node.append_value(Box{{4.0, 4.0}, {5.0, 5.0}}, 30);
+
+    node.remove_at(1); // remove 20; 30 should swap into index 1
+
+    assert(node.count() == 2);
+    assert(node.value_at(0).value == 10);
+    assert(node.value_at(1).value == 30);
+    assert((node.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
+}
+
+void test_remove_at_leaf_last_entry() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node;
+    node.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 10);
+    node.append_value(Box{{2.0, 2.0}, {3.0, 3.0}}, 20);
+
+    node.remove_at(1); // no swap needed
+
+    assert(node.count() == 1);
+    assert(node.value_at(0).value == 10);
+    assert((node.bounds() == Box{{0.0, 0.0}, {1.0, 1.0}}));
+}
+
+void test_remove_at_leaf_shrinks_bounds() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node;
+    node.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 1);
+    node.append_value(Box{{5.0, 5.0}, {10.0, 10.0}}, 2); // extends bounds the most
+    node.append_value(Box{{0.0, 0.0}, {2.0, 2.0}}, 3);
+
+    assert((node.bounds() == Box{{0.0, 0.0}, {10.0, 10.0}}));
+
+    node.remove_at(1); // remove the large box; entry 3 swaps into index 1
+
+    // remaining: {0,0}-{1,1} and {0,0}-{2,2}
+    assert((node.bounds() == Box{{0.0, 0.0}, {2.0, 2.0}}));
+}
+
+void test_remove_at_leaf_tracks_lifetimes() {
+    using Node = talus::detail::RTreeNode<TrackedValue, double, 4>;
+
+    Node node;
+    node.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, TrackedValue{"first"});
+    node.append_value(Box{{2.0, 2.0}, {3.0, 3.0}}, TrackedValue{"second"});
+    node.append_value(Box{{4.0, 4.0}, {5.0, 5.0}}, TrackedValue{"third"});
+
+    reset_tracked_value_counters();
+
+    // remove_at(1): destroys "second", move-constructs "third" into index 1, destroys moved-from "third"
+    node.remove_at(1);
+
+    assert(TrackedValue::moved == 1);
+    assert(TrackedValue::destroyed == 2); // "second" + moved-from "third"
+    assert(TrackedValue::constructed == 1); // the move-construct of "third" into the gap
+    assert(node.value_at(0).value.name == "first");
+    assert(node.value_at(1).value.name == "third");
+}
+
+void test_remove_at_internal_clears_child_parent() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node parent(false);
+    Node child_a, child_b, child_c;
+
+    parent.append_child(Box{{0.0, 0.0}, {1.0, 1.0}}, &child_a);
+    parent.append_child(Box{{2.0, 2.0}, {3.0, 3.0}}, &child_b);
+    parent.append_child(Box{{4.0, 4.0}, {5.0, 5.0}}, &child_c);
+
+    parent.remove_at(1); // remove child_b; child_c swaps into index 1
+
+    assert(parent.count() == 2);
+    assert(child_b.parent() == nullptr);          // removed child's parent cleared
+    assert(parent.child_at(0).child == &child_a);
+    assert(parent.child_at(1).child == &child_c); // child_c now at index 1
+    assert(child_a.parent() == &parent);
+    assert(child_c.parent() == &parent);           // still owned by parent
+    assert((parent.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
+}
+
+void test_reset_clears_own_parent_pointer() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node parent(false);
+    Node child;
+
+    parent.append_child(Box{{0.0, 0.0}, {1.0, 1.0}}, &child);
+    assert(child.parent() == &parent);
+
+    child.reset_as_internal();
+    assert(child.parent() == nullptr);
+
+    Node new_parent(false);
+    new_parent.append_child(Box{{0.0, 0.0}, {1.0, 1.0}}, &child);
+    assert(child.parent() == &new_parent);
+
+    child.reset_as_leaf();
+    assert(child.parent() == nullptr);
+}
+
 void test_pool_allocator_returns_aligned_nodes() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -238,5 +345,11 @@ int main() {
     test_leaf_node_emplaces_immovable_values();
     test_internal_node_tracks_children_and_parent_links();
     test_reset_changes_node_kind_after_destroying_active_entries();
+    test_remove_at_leaf_swaps_last_into_gap();
+    test_remove_at_leaf_last_entry();
+    test_remove_at_leaf_shrinks_bounds();
+    test_remove_at_leaf_tracks_lifetimes();
+    test_remove_at_internal_clears_child_parent();
+    test_reset_clears_own_parent_pointer();
     test_pool_allocator_returns_aligned_nodes();
 }

@@ -167,6 +167,30 @@ public:
         return *child_entry(index);
     }
 
+    void remove_at(std::size_t index) {
+        assert(index < count_);
+
+        const std::size_t last = count_ - 1;
+
+        if (is_leaf_) {
+            std::destroy_at(value_entry(index));
+            if (index != last) {
+                std::construct_at(value_entry(index), std::move(*value_entry(last)));
+                std::destroy_at(value_entry(last));
+            }
+        } else {
+            child_entry(index)->child->set_parent(nullptr);
+            std::destroy_at(child_entry(index));
+            if (index != last) {
+                std::construct_at(child_entry(index), std::move(*child_entry(last)));
+                std::destroy_at(child_entry(last));
+            }
+        }
+
+        --count_;
+        recompute_bounds();
+    }
+
     void update_bounds(std::size_t index, BoundingBox<Scalar> entry_bounds) noexcept {
         assert(index < count_);
 
@@ -211,11 +235,13 @@ public:
     void reset_as_leaf() noexcept(std::is_nothrow_destructible_v<T>) {
         clear();
         is_leaf_ = true;
+        parent_ = nullptr;
     }
 
     void reset_as_internal() noexcept(std::is_nothrow_destructible_v<T>) {
         clear();
         is_leaf_ = false;
+        parent_ = nullptr;
     }
 
 private:
