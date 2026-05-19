@@ -192,6 +192,24 @@ void test_internal_node_tracks_children_and_parent_links() {
     assert(right.parent() == nullptr);
 }
 
+void test_leaf_node_update_bounds_recomputes_aggregate() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node;
+    node.append_value(Box{{0.0, 0.0}, {2.0, 2.0}}, 1);
+    node.append_value(Box{{3.0, 3.0}, {5.0, 5.0}}, 2);
+
+    assert((node.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
+
+    node.update_bounds(1, Box{{3.0, 3.0}, {4.0, 4.0}}); // shrink entry 1
+    assert((node.value_at(1).bounds == Box{{3.0, 3.0}, {4.0, 4.0}}));
+    assert((node.bounds() == Box{{0.0, 0.0}, {4.0, 4.0}}));
+
+    node.update_bounds(0, Box{{-1.0, -1.0}, {2.0, 2.0}}); // expand entry 0
+    assert((node.value_at(0).bounds == Box{{-1.0, -1.0}, {2.0, 2.0}}));
+    assert((node.bounds() == Box{{-1.0, -1.0}, {4.0, 4.0}}));
+}
+
 void test_reset_changes_node_kind_after_destroying_active_entries() {
     using Node = talus::detail::RTreeNode<TrackedValue, double, 4>;
 
@@ -344,6 +362,7 @@ int main() {
     test_leaf_node_supports_move_only_values_and_overflow_slot();
     test_leaf_node_emplaces_immovable_values();
     test_internal_node_tracks_children_and_parent_links();
+    test_leaf_node_update_bounds_recomputes_aggregate();
     test_reset_changes_node_kind_after_destroying_active_entries();
     test_remove_at_leaf_swaps_last_into_gap();
     test_remove_at_leaf_last_entry();
