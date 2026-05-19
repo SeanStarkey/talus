@@ -119,7 +119,7 @@ void test_leaf_node_stores_non_default_constructible_values() {
         node.clear();
         assert(node.empty());
         assert(node.bounds() == Box{});
-        assert(TrackedValue::destroyed == 3); // alpha variable, temporary beta, and two node entries minus alpha live below.
+        assert(TrackedValue::destroyed == 3); // temporary beta + two node entries (alpha local is still in scope)
     }
 
     assert(TrackedValue::constructed == TrackedValue::destroyed);
