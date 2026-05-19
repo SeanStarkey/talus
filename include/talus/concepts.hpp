@@ -1,5 +1,13 @@
 #pragma once
 
+/// @file concepts.hpp
+/// @brief Type-detection concepts and coordinate extraction helpers.
+///
+/// This header defines the zero-boilerplate rules Talus uses to recognize
+/// points, bounded geometries, and custom coordinate extractors. New spatial
+/// index code should call `bounding_box_of()` instead of inspecting user types
+/// directly.
+
 #include <concepts>
 #include "geometry.hpp"
 

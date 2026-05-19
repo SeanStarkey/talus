@@ -1,5 +1,13 @@
 #pragma once
 
+/// @file detail/pool_alloc.hpp
+/// @brief Contiguous block pool allocator for tree nodes and other fixed types.
+///
+/// `PoolAllocator` constructs objects in reusable blocks, tracks live slots, and
+/// preserves alignment for cache-sensitive structures such as `RTreeNode`. It is
+/// an internal utility for fast allocation and deterministic cleanup in the
+/// header-only indexes.
+
 #include <cassert>
 #include <cstddef>
 #include <memory>

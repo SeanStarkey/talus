@@ -21,6 +21,9 @@ The following scaffolding directories currently contain placeholder CMake files:
 
 The concept layer now supports scalar-aware bounding-box extraction and gives `.bounds()` precedence over point fields when a type satisfies both.
 
+All current library headers now include file-level comment headers that describe
+their purpose and ownership boundaries.
+
 The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, plus focused pool allocator and R-tree node storage tests.
 
 CMake configure, build, and `ctest` pass with the current foundation, pool allocator, and node storage test targets.

@@ -1,5 +1,13 @@
 #pragma once
 
+/// @file geometry.hpp
+/// @brief Core constexpr-friendly geometry primitives for Talus indexes.
+///
+/// Provides `Point`, `BoundingBox`, `Segment`, and distance helpers used by the
+/// R-tree, k-d tree, brute-force oracle, and user-facing geometry APIs. The
+/// bounding-box operations here are the shared source of truth for containment,
+/// intersection, expansion, and distance calculations.
+
 #include <algorithm>
 #include <cmath>
 

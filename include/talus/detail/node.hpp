@@ -1,5 +1,14 @@
 #pragma once
 
+/// @file detail/node.hpp
+/// @brief Cache-aligned R-tree node storage primitives.
+///
+/// Defines the leaf and internal entry storage used by the R-tree. `RTreeNode`
+/// owns value lifetimes explicitly so leaves can store arbitrary user-provided
+/// types, including non-default-constructible, move-only, and immovable classes.
+/// This header intentionally contains storage mechanics only; insertion,
+/// splitting, search, and deletion algorithms live in later detail headers.
+
 #include <cassert>
 #include <cstddef>
 #include <memory>
