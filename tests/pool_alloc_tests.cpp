@@ -141,6 +141,85 @@ void test_null_destroy_is_noop() {
     assert(NodeLike::destroyed == 0);
 }
 
+void test_reserve_preallocates_without_construction() {
+    reset_counters();
+
+    talus::detail::PoolAllocator<NodeLike, 2> pool;
+
+    pool.reserve(0);
+    assert(pool.empty());
+    assert(pool.block_count() == 0);
+    assert(pool.capacity() == 0);
+
+    pool.reserve(5);
+    assert(pool.empty());
+    assert(pool.block_count() == 3);
+    assert(pool.capacity() == 6);
+    assert(NodeLike::constructed == 0);
+    assert(NodeLike::destroyed == 0);
+
+    pool.reserve(3);
+    assert(pool.block_count() == 3);
+    assert(pool.capacity() == 6);
+}
+
+void test_create_uses_reserved_blocks_before_growing() {
+    reset_counters();
+
+    talus::detail::PoolAllocator<NodeLike, 2> pool;
+    pool.reserve(4);
+
+    NodeLike* first = pool.create(1);
+    NodeLike* second = pool.create(2);
+    NodeLike* third = pool.create(3);
+    NodeLike* fourth = pool.create(4);
+
+    assert(first->value == 1);
+    assert(second->value == 2);
+    assert(third->value == 3);
+    assert(fourth->value == 4);
+    assert(pool.size() == 4);
+    assert(pool.block_count() == 2);
+    assert(pool.capacity() == 4);
+
+    (void)pool.create(5);
+    assert(pool.size() == 5);
+    assert(pool.block_count() == 3);
+    assert(pool.capacity() == 6);
+
+    pool.clear();
+    assert(NodeLike::constructed == 5);
+    assert(NodeLike::destroyed == 5);
+}
+
+void test_reserve_preserves_live_objects() {
+    reset_counters();
+
+    talus::detail::PoolAllocator<NodeLike, 2> pool;
+
+    NodeLike* first = pool.create(10);
+    NodeLike* second = pool.create(20);
+
+    pool.reserve(5);
+    assert(pool.size() == 2);
+    assert(pool.block_count() == 3);
+    assert(pool.capacity() == 6);
+    assert(first->value == 10);
+    assert(second->value == 20);
+    assert(NodeLike::constructed == 2);
+    assert(NodeLike::destroyed == 0);
+
+    NodeLike* third = pool.create(30);
+    assert(third != first);
+    assert(third != second);
+    assert(third->value == 30);
+    assert(pool.size() == 3);
+    assert(pool.block_count() == 3);
+
+    pool.clear();
+    assert(NodeLike::destroyed == 3);
+}
+
 void test_move_semantics() {
     reset_counters();
 
@@ -310,6 +389,9 @@ int main() {
     test_destroy_reuses_slots();
     test_reset_keeps_capacity();
     test_null_destroy_is_noop();
+    test_reserve_preallocates_without_construction();
+    test_create_uses_reserved_blocks_before_growing();
+    test_reserve_preserves_live_objects();
     test_move_semantics();
     test_interleaved_free_list_and_sequential();
     test_reset_refills_all_blocks();

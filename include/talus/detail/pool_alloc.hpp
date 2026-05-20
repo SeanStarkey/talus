@@ -67,6 +67,23 @@ public:
         clear();
     }
 
+    /// @brief Allocates enough raw storage for at least `object_count` objects.
+    ///
+    /// No objects are constructed, live objects remain valid, and the pool never
+    /// shrinks. Later calls to `create()` consume the reserved slots before
+    /// allocating additional blocks.
+    void reserve(std::size_t object_count) {
+        const std::size_t required_blocks = object_count / BlockSize + (object_count % BlockSize == 0 ? 0 : 1);
+        if (required_blocks <= blocks_.size()) {
+            return;
+        }
+
+        blocks_.reserve(required_blocks);
+        while (blocks_.size() < required_blocks) {
+            blocks_.emplace_back();
+        }
+    }
+
     /// @brief Constructs an object in pool storage and returns its address.
     ///
     /// If construction throws, the acquired slot is returned to the allocator.
