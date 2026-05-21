@@ -245,6 +245,10 @@ public:
     }
 
     /// @brief Returns a mutable span over live leaf entries.
+    ///
+    /// Writing to an entry's `bounds` field through this span bypasses
+    /// `recompute_bounds()`. Call `recompute_bounds()` or `update_bounds()`
+    /// after any direct modification to keep `bounds()` consistent.
     [[nodiscard]] std::span<value_entry_type> values() noexcept {
         assert(is_leaf_);
         if (count_ == 0) return {};
@@ -259,6 +263,10 @@ public:
     }
 
     /// @brief Returns a mutable span over live child entries.
+    ///
+    /// Writing to an entry's `bounds` field through this span bypasses
+    /// `recompute_bounds()`. Call `recompute_bounds()` or `update_bounds()`
+    /// after any direct modification to keep `bounds()` consistent.
     [[nodiscard]] std::span<child_entry_type> children() noexcept {
         assert(!is_leaf_);
         if (count_ == 0) return {};
