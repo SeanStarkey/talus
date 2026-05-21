@@ -145,7 +145,7 @@ template<typename Scalar>
 
 /// @brief Returns Euclidean distance between two points.
 template<typename Scalar>
-[[nodiscard]] Scalar distance(Point<Scalar> a, Point<Scalar> b) {
+[[nodiscard]] Scalar distance(Point<Scalar> a, Point<Scalar> b) noexcept {
     static_assert(std::is_floating_point_v<Scalar>,
         "distance: Scalar must be a floating-point type to avoid signed overflow UB");
     return std::sqrt(sq_distance(a, b));
