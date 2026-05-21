@@ -10,6 +10,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <exception>
 #include <memory>
 #include <new>
 #include <type_traits>
@@ -264,8 +265,8 @@ private:
             }
         }
 
-        assert(false);
-        return blocks_.front();
+        assert(false && "block_for: pointer not owned by this pool");
+        std::terminate();
     }
 
     [[nodiscard]] const Block& block_for(const T* object) const noexcept {
@@ -275,8 +276,8 @@ private:
             }
         }
 
-        assert(false);
-        return blocks_.front();
+        assert(false && "block_for: pointer not owned by this pool");
+        std::terminate();
     }
 
     [[nodiscard]] bool is_live(const T* object) const noexcept {
