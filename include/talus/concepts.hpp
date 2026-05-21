@@ -15,14 +15,14 @@ namespace talus {
 
 /// @brief Matches structs with `.x` and `.y` fields convertible to `double`.
 template<typename T>
-concept HasXY = requires(T t) {
+concept HasXY = requires(const T& t) {
     { t.x } -> std::convertible_to<double>;
     { t.y } -> std::convertible_to<double>;
 };
 
 /// @brief Matches structs with `.lat` and `.lon` fields convertible to `double`.
 template<typename T>
-concept HasLatLon = requires(T t) {
+concept HasLatLon = requires(const T& t) {
     { t.lat } -> std::convertible_to<double>;
     { t.lon } -> std::convertible_to<double>;
 };
