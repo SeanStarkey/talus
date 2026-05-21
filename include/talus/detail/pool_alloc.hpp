@@ -116,7 +116,10 @@ public:
 
         Block& block = block_for(object);
         const std::size_t index = block.index_of(object);
-        assert(block.live[index]);
+        if (!block.live[index]) {
+            assert(false && "destroy: double-destroy or unowned pointer");
+            std::terminate();
+        }
 
         std::destroy_at(object);
         block.live[index] = false;
