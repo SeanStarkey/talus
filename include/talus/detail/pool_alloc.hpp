@@ -122,14 +122,16 @@ public:
 
         auto [bi, si] = locate(object);
         Block& block = blocks_[bi];
+        T* slot_object = block.data + si;
 
-        if (!block.live[si]) {
+        if (object != slot_object || !block.live[si]) {
             TALUS_ASSERT(false && "destroy: double-destroy or unowned pointer");
+            return;
         }
 
-        std::destroy_at(object);
+        std::destroy_at(slot_object);
         block.live[si] = false;
-        free_list_.push_back({object, bi, si, true});
+        free_list_.push_back({slot_object, bi, si, true});
         --size_;
     }
 

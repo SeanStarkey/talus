@@ -1,10 +1,12 @@
 #include <talus/detail/pool_alloc.hpp>
 
 #include <cassert>
+#include <cstdlib>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
+#include <string>
 
 namespace {
 
@@ -140,6 +142,20 @@ void test_null_destroy_is_noop() {
     assert(pool.empty());
     assert(NodeLike::constructed == 0);
     assert(NodeLike::destroyed == 0);
+}
+
+void run_destroy_interior_pointer_case() {
+    talus::detail::PoolAllocator<NodeLike, 2> pool;
+    NodeLike* object = pool.create(1);
+    auto* interior = reinterpret_cast<NodeLike*>(reinterpret_cast<std::byte*>(object) + 1);
+
+    pool.destroy(interior);
+}
+
+void test_destroy_rejects_interior_pointer(const char* executable) {
+    const std::string command = std::string{"\""} + executable + "\" --destroy-interior-pointer";
+    int status = std::system(command.c_str());
+    assert(status != 0);
 }
 
 void test_reserve_preallocates_without_construction() {
@@ -399,11 +415,17 @@ void test_throwing_constructor_releases_slot() {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc == 2 && std::string{argv[1]} == "--destroy-interior-pointer") {
+        run_destroy_interior_pointer_case();
+        return 0;
+    }
+
     test_create_alignment_and_growth();
     test_destroy_reuses_slots();
     test_reset_keeps_capacity();
     test_null_destroy_is_noop();
+    test_destroy_rejects_interior_pointer(argv[0]);
     test_reserve_preallocates_without_construction();
     test_reserve_block_count_does_not_wrap();
     test_create_uses_reserved_blocks_before_growing();
