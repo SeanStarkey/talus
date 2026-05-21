@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <type_traits>
 
 namespace talus {
 
@@ -33,6 +34,9 @@ struct Point {
 /// @brief Axis-aligned bounding box described by minimum and maximum corners.
 template<typename Scalar = double>
 struct BoundingBox {
+    static_assert(std::is_floating_point_v<Scalar>,
+        "BoundingBox<Scalar>: Scalar must be a floating-point type; "
+        "integer scalars cause signed overflow UB in area(), center(), and distance operations");
     /// Lower-left corner of the box.
     Point<Scalar> min{};
 
@@ -123,6 +127,8 @@ struct Segment {
 /// @brief Returns squared Euclidean distance between two points.
 template<typename Scalar>
 [[nodiscard]] constexpr Scalar sq_distance(Point<Scalar> a, Point<Scalar> b) noexcept {
+    static_assert(std::is_floating_point_v<Scalar>,
+        "sq_distance: Scalar must be a floating-point type to avoid signed overflow UB");
     Scalar dx = a.x - b.x;
     Scalar dy = a.y - b.y;
     return dx * dx + dy * dy;
@@ -131,6 +137,8 @@ template<typename Scalar>
 /// @brief Returns Euclidean distance between two points.
 template<typename Scalar>
 [[nodiscard]] Scalar distance(Point<Scalar> a, Point<Scalar> b) {
+    static_assert(std::is_floating_point_v<Scalar>,
+        "distance: Scalar must be a floating-point type to avoid signed overflow UB");
     return std::sqrt(sq_distance(a, b));
 }
 
