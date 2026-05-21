@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include "assert.hpp"
 #include <cstddef>
 #include <exception>
 #include <memory>
@@ -123,8 +124,7 @@ public:
         Block& block = blocks_[bi];
 
         if (!block.live[si]) {
-            assert(false && "destroy: double-destroy or unowned pointer");
-            std::terminate();
+            TALUS_ASSERT(false && "destroy: double-destroy or unowned pointer");
         }
 
         std::destroy_at(object);
@@ -257,8 +257,7 @@ private:
                 return {it->block_index, block.index_of(object)};
             }
         }
-        assert(false && "locate: pointer not owned by this pool");
-        std::terminate();
+        TALUS_ASSERT(false && "locate: pointer not owned by this pool");
     }
 
     [[nodiscard]] Slot acquire_slot() {
@@ -293,8 +292,8 @@ private:
             return;
         }
 
-        assert(next_slot_ > 0);
-        assert(slot.object == blocks_[slot.block_index].data + next_slot_ - 1);
+        TALUS_ASSERT(next_slot_ > 0);
+        TALUS_ASSERT(slot.object == blocks_[slot.block_index].data + next_slot_ - 1);
         --next_slot_;
         blocks_[slot.block_index].used = next_slot_;
     }

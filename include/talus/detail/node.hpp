@@ -10,6 +10,7 @@
 /// splitting, search, and deletion algorithms live in later detail headers.
 
 #include <cassert>
+#include "assert.hpp"
 #include <cstddef>
 #include <memory>
 #include <new>
@@ -184,9 +185,9 @@ public:
     /// Requires this node to be a leaf and to have available entry capacity.
     template<typename... Args>
     value_entry_type& emplace_value(BoundingBox<Scalar> entry_bounds, Args&&... args) {
-        assert(is_leaf_);
-        assert(can_append_entry());
-        assert(entry_bounds.is_valid());
+        TALUS_ASSERT(is_leaf_);
+        TALUS_ASSERT(can_append_entry());
+        TALUS_ASSERT(entry_bounds.is_valid());
 
         value_entry_type* entry = value_entry(count_);
         std::construct_at(entry, entry_bounds, std::forward<Args>(args)...);
@@ -199,10 +200,10 @@ public:
     ///
     /// Requires this node to be internal and `child` to be non-null.
     child_entry_type& append_child(BoundingBox<Scalar> entry_bounds, node_type* child) {
-        assert(!is_leaf_);
-        assert(child != nullptr);
-        assert(can_append_entry());
-        assert(entry_bounds.is_valid());
+        TALUS_ASSERT(!is_leaf_);
+        TALUS_ASSERT(child != nullptr);
+        TALUS_ASSERT(can_append_entry());
+        TALUS_ASSERT(entry_bounds.is_valid());
 
         child_entry_type* entry = child_entry(count_);
         std::construct_at(entry, entry_bounds, child);
@@ -214,35 +215,35 @@ public:
 
     /// @brief Returns the mutable leaf entry at `index`.
     [[nodiscard]] value_entry_type& value_at(std::size_t index) noexcept {
-        assert(is_leaf_);
-        assert(index < count_);
+        TALUS_ASSERT(is_leaf_);
+        TALUS_ASSERT(index < count_);
         return *value_entry(index);
     }
 
     /// @brief Returns the immutable leaf entry at `index`.
     [[nodiscard]] const value_entry_type& value_at(std::size_t index) const noexcept {
-        assert(is_leaf_);
-        assert(index < count_);
+        TALUS_ASSERT(is_leaf_);
+        TALUS_ASSERT(index < count_);
         return *value_entry(index);
     }
 
     /// @brief Returns the mutable child entry at `index`.
     [[nodiscard]] child_entry_type& child_at(std::size_t index) noexcept {
-        assert(!is_leaf_);
-        assert(index < count_);
+        TALUS_ASSERT(!is_leaf_);
+        TALUS_ASSERT(index < count_);
         return *child_entry(index);
     }
 
     /// @brief Returns the immutable child entry at `index`.
     [[nodiscard]] const child_entry_type& child_at(std::size_t index) const noexcept {
-        assert(!is_leaf_);
-        assert(index < count_);
+        TALUS_ASSERT(!is_leaf_);
+        TALUS_ASSERT(index < count_);
         return *child_entry(index);
     }
 
     /// @brief Returns the bounds stored for any entry at `index`.
     [[nodiscard]] BoundingBox<Scalar> entry_bounds_at(std::size_t index) const noexcept {
-        assert(index < count_);
+        TALUS_ASSERT(index < count_);
         return is_leaf_ ? value_entry(index)->bounds : child_entry(index)->bounds;
     }
 
@@ -252,14 +253,14 @@ public:
     /// `recompute_bounds()`. Call `recompute_bounds()` or `update_bounds()`
     /// after any direct modification to keep `bounds()` consistent.
     [[nodiscard]] std::span<value_entry_type> values() noexcept {
-        assert(is_leaf_);
+        TALUS_ASSERT(is_leaf_);
         if (count_ == 0) return {};
         return {value_entry(0), count_};
     }
 
     /// @brief Returns an immutable span over live leaf entries.
     [[nodiscard]] std::span<const value_entry_type> values() const noexcept {
-        assert(is_leaf_);
+        TALUS_ASSERT(is_leaf_);
         if (count_ == 0) return {};
         return {value_entry(0), count_};
     }
@@ -270,14 +271,14 @@ public:
     /// `recompute_bounds()`. Call `recompute_bounds()` or `update_bounds()`
     /// after any direct modification to keep `bounds()` consistent.
     [[nodiscard]] std::span<child_entry_type> children() noexcept {
-        assert(!is_leaf_);
+        TALUS_ASSERT(!is_leaf_);
         if (count_ == 0) return {};
         return {child_entry(0), count_};
     }
 
     /// @brief Returns an immutable span over live child entries.
     [[nodiscard]] std::span<const child_entry_type> children() const noexcept {
-        assert(!is_leaf_);
+        TALUS_ASSERT(!is_leaf_);
         if (count_ == 0) return {};
         return {child_entry(0), count_};
     }
@@ -286,7 +287,7 @@ public:
     ///
     /// Entry order is not preserved. Bounds are recomputed after removal.
     void remove_at(std::size_t index) {
-        assert(index < count_);
+        TALUS_ASSERT(index < count_);
 
         const std::size_t last = count_ - 1;
 
@@ -311,8 +312,8 @@ public:
 
     /// @brief Replaces one entry's stored bounds and refreshes node bounds.
     void update_bounds(std::size_t index, BoundingBox<Scalar> entry_bounds) noexcept {
-        assert(index < count_);
-        assert(entry_bounds.is_valid());
+        TALUS_ASSERT(index < count_);
+        TALUS_ASSERT(entry_bounds.is_valid());
 
         if (is_leaf_) {
             value_entry(index)->bounds = entry_bounds;
