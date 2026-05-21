@@ -186,6 +186,7 @@ public:
     value_entry_type& emplace_value(BoundingBox<Scalar> entry_bounds, Args&&... args) {
         assert(is_leaf_);
         assert(can_append_entry());
+        assert(entry_bounds.is_valid());
 
         value_entry_type* entry = value_entry(count_);
         std::construct_at(entry, entry_bounds, std::forward<Args>(args)...);
@@ -201,6 +202,7 @@ public:
         assert(!is_leaf_);
         assert(child != nullptr);
         assert(can_append_entry());
+        assert(entry_bounds.is_valid());
 
         child_entry_type* entry = child_entry(count_);
         std::construct_at(entry, entry_bounds, child);
@@ -310,6 +312,7 @@ public:
     /// @brief Replaces one entry's stored bounds and refreshes node bounds.
     void update_bounds(std::size_t index, BoundingBox<Scalar> entry_bounds) noexcept {
         assert(index < count_);
+        assert(entry_bounds.is_valid());
 
         if (is_leaf_) {
             value_entry(index)->bounds = entry_bounds;

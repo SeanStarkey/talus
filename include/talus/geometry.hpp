@@ -95,6 +95,15 @@ struct BoundingBox {
         return dx * dx + dy * dy;
     }
 
+    /// @brief Returns true when all coordinates are finite and min ≤ max on each axis.
+    ///
+    /// NaN or infinite coordinates in either corner make this return false.
+    [[nodiscard]] bool is_valid() const noexcept {
+        return std::isfinite(min.x) && std::isfinite(min.y)
+            && std::isfinite(max.x) && std::isfinite(max.y)
+            && min.x <= max.x && min.y <= max.y;
+    }
+
     /// @brief Compares boxes by corner value.
     constexpr bool operator==(const BoundingBox&) const noexcept = default;
 };
