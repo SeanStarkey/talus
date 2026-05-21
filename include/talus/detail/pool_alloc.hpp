@@ -79,7 +79,7 @@ public:
     /// allocating additional blocks.
     void reserve(std::size_t object_count) {
         const std::size_t required_blocks =
-            (object_count + BlockSize - 1) / BlockSize;
+            object_count / BlockSize + (object_count % BlockSize == 0 ? 0 : 1);
         if (required_blocks <= blocks_.size()) {
             return;
         }

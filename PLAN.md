@@ -53,6 +53,7 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 - Completed: test pool allocation, reset/clear behavior, slot reuse, alignment, and capacity.
 - Completed: test node alignment, node capacity, leaf/internal invariants, parent links, and non-trivial/move-only value storage.
 - Completed: add and test pool reserve/preallocation for large builds.
+- Completed: harden pool reserve block-count calculation against size overflow.
 - Keep this layer independent from the higher-level tree algorithms where practical.
 - Preserve a serialization-friendly and large-dataset-friendly design: keep persistent formats pointer-free, keep pool block size tunable, and avoid public APIs that expose node addresses as durable IDs.
 

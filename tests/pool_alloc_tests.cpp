@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -161,6 +162,20 @@ void test_reserve_preallocates_without_construction() {
     pool.reserve(3);
     assert(pool.block_count() == 3);
     assert(pool.capacity() == 6);
+}
+
+void test_reserve_block_count_does_not_wrap() {
+    talus::detail::PoolAllocator<NodeLike, 2> pool;
+
+    try {
+        pool.reserve(std::numeric_limits<std::size_t>::max());
+        assert(false);
+    } catch (const std::length_error&) {
+    }
+
+    assert(pool.empty());
+    assert(pool.block_count() == 0);
+    assert(pool.capacity() == 0);
 }
 
 void test_create_uses_reserved_blocks_before_growing() {
@@ -390,6 +405,7 @@ int main() {
     test_reset_keeps_capacity();
     test_null_destroy_is_noop();
     test_reserve_preallocates_without_construction();
+    test_reserve_block_count_does_not_wrap();
     test_create_uses_reserved_blocks_before_growing();
     test_reserve_preserves_live_objects();
     test_move_semantics();
