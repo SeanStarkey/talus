@@ -58,18 +58,21 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 - Keep this layer independent from the higher-level tree algorithms where practical.
 - Preserve a serialization-friendly and large-dataset-friendly design: keep persistent formats pointer-free, keep pool block size tunable, and avoid public APIs that expose node addresses as durable IDs.
 
-### 4. Implement the Minimal Public R-tree API
+### 4. Implement the R*-tree Algorithms
 
-- Add `include/talus/rtree.hpp`.
-- Introduce `SpatialIndex<T, Scalar, MaxChildren>`.
-- Start with:
-  - `insert`
-  - `size`
-  - `empty`
-  - `clear`
-  - rectangular `search`
+`include/talus/detail/algorithms.hpp` is the R-tree implementation. It contains
+the tree logic that operates on `RTreeNode` objects from `node.hpp`. Implement
+and test in this order:
 
-Do not start nearest neighbor, delete, or bulk loading until insert/search correctness is solid.
+1. ChooseLeaf
+2. Insert
+3. SplitNode
+4. AdjustTree
+5. Search
+
+Do not start NearestNeighbor, Delete, or STR bulk load until Insert and Search
+correctness is solid. Each step should have focused tests before moving to the
+next one.
 
 ### 5. Add the Brute-force Oracle
 
@@ -78,23 +81,29 @@ Do not start nearest neighbor, delete, or bulk loading until insert/search corre
 - Add randomized search tests after deterministic tests are stable.
 - Scale randomized tests gradually before attempting the documented large stress tests.
 
-### 6. Implement Full R*-tree Algorithms Incrementally
+### 6. Expose the Public R-tree API
 
-Implement and test in this order:
+`include/talus/rtree.hpp` is a thin wrapper around the algorithms. It owns the
+root node and pool, and exposes the user-facing `SpatialIndex<T, Scalar,
+MaxChildren>` API. Implement only after the algorithms in step 4 are correct.
 
-1. ChooseLeaf
-2. Insert
-3. SplitNode
-4. AdjustTree
-5. Search
-6. NearestNeighbor
-7. Radius search
-8. Delete
-9. STR bulk load
+Start with:
+  - `insert`
+  - `size`
+  - `empty`
+  - `clear`
+  - rectangular `search`
 
-Each step should have focused tests before moving to the next one.
+### 7. Implement Remaining R*-tree Algorithms
 
-### 7. Add Examples and Benchmarks
+After Insert and Search are solid, add to `algorithms.hpp`:
+
+1. NearestNeighbor
+2. Radius search
+3. Delete
+4. STR bulk load
+
+### 8. Add Examples and Benchmarks
 
 After correctness is established:
 
@@ -106,4 +115,6 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Implement `include/talus/rtree.hpp` and the first minimal R-tree insertion/search path, starting with `detail/algorithms.hpp` helpers for ChooseLeaf, Insert, SplitNode, AdjustTree, and Search.
+Implement `include/talus/detail/algorithms.hpp`, starting with ChooseLeaf and
+Insert. This is the R*-tree core; `rtree.hpp` is the public wrapper that comes
+after, not before.
