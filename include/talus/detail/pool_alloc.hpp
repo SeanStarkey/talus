@@ -8,6 +8,7 @@
 /// an internal utility for fast allocation and deterministic cleanup in the
 /// header-only indexes.
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <exception>
@@ -51,11 +52,13 @@ public:
 
         clear();
         blocks_ = std::move(other.blocks_);
+        block_map_ = std::move(other.block_map_);
         free_list_ = std::move(other.free_list_);
         current_block_ = other.current_block_;
         next_slot_ = other.next_slot_;
         size_ = other.size_;
 
+        other.block_map_.clear();
         other.free_list_.clear();
         other.current_block_ = 0;
         other.next_slot_ = 0;
@@ -74,14 +77,16 @@ public:
     /// shrinks. Later calls to `create()` consume the reserved slots before
     /// allocating additional blocks.
     void reserve(std::size_t object_count) {
-        const std::size_t required_blocks = object_count / BlockSize + (object_count % BlockSize == 0 ? 0 : 1);
+        const std::size_t required_blocks =
+            (object_count + BlockSize - 1) / BlockSize;
         if (required_blocks <= blocks_.size()) {
             return;
         }
 
         blocks_.reserve(required_blocks);
+        block_map_.reserve(required_blocks);
         while (blocks_.size() < required_blocks) {
-            blocks_.emplace_back();
+            add_block();
         }
     }
 
@@ -100,7 +105,7 @@ public:
             throw;
         }
 
-        set_live(object, true);
+        blocks_[slot.block_index].live[slot.slot_index] = true;
         ++size_;
         return object;
     }
@@ -114,16 +119,17 @@ public:
             return;
         }
 
-        Block& block = block_for(object);
-        const std::size_t index = block.index_of(object);
-        if (!block.live[index]) {
+        auto [bi, si] = locate(object);
+        Block& block = blocks_[bi];
+
+        if (!block.live[si]) {
             assert(false && "destroy: double-destroy or unowned pointer");
             std::terminate();
         }
 
         std::destroy_at(object);
-        block.live[index] = false;
-        free_list_.push_back(object);
+        block.live[si] = false;
+        free_list_.push_back({object, bi, si, true});
         --size_;
     }
 
@@ -140,6 +146,7 @@ public:
     void clear() noexcept(std::is_nothrow_destructible_v<T>) {
         destroy_live_objects();
         blocks_.clear();
+        block_map_.clear();
         current_block_ = 0;
         next_slot_ = 0;
         free_list_.clear();
@@ -169,6 +176,8 @@ public:
 private:
     struct Slot {
         T* object = nullptr;
+        std::size_t block_index = 0;
+        std::size_t slot_index = 0;
         bool from_free_list = false;
     };
 
@@ -224,73 +233,70 @@ private:
         std::size_t used = 0;
     };
 
+    struct IndexEntry {
+        const std::byte* base = nullptr;
+        std::size_t block_index = 0;
+    };
+
+    void add_block() {
+        blocks_.emplace_back();
+        const std::byte* base = reinterpret_cast<const std::byte*>(blocks_.back().data);
+        auto pos = std::lower_bound(block_map_.begin(), block_map_.end(), base,
+            [](const IndexEntry& e, const std::byte* ptr) { return e.base < ptr; });
+        block_map_.insert(pos, {base, blocks_.size() - 1});
+    }
+
+    [[nodiscard]] std::pair<std::size_t, std::size_t> locate(const T* object) const noexcept {
+        const std::byte* bytes = reinterpret_cast<const std::byte*>(object);
+        auto it = std::upper_bound(block_map_.begin(), block_map_.end(), bytes,
+            [](const std::byte* ptr, const IndexEntry& e) { return ptr < e.base; });
+        if (it != block_map_.begin()) {
+            --it;
+            const Block& block = blocks_[it->block_index];
+            if (block.contains(object)) {
+                return {it->block_index, block.index_of(object)};
+            }
+        }
+        assert(false && "locate: pointer not owned by this pool");
+        std::terminate();
+    }
+
     [[nodiscard]] Slot acquire_slot() {
         if (!free_list_.empty()) {
-            T* object = free_list_.back();
+            Slot slot = free_list_.back();
             free_list_.pop_back();
-            return {object, true};
+            return slot;
         }
 
         if (blocks_.empty()) {
-            blocks_.emplace_back();
+            add_block();
             current_block_ = 0;
             next_slot_ = 0;
         } else if (next_slot_ == BlockSize) {
             ++current_block_;
             if (current_block_ == blocks_.size()) {
-                blocks_.emplace_back();
+                add_block();
             }
             next_slot_ = 0;
         }
 
+        const std::size_t si = next_slot_;
         Block& block = blocks_[current_block_];
-        block.used = next_slot_ + 1;
-        return {block.data + next_slot_++, false};
+        block.used = si + 1;
+        ++next_slot_;
+        return {block.data + si, current_block_, si, false};
     }
 
     void release_unconstructed(Slot slot) {
         if (slot.from_free_list) {
-            free_list_.push_back(slot.object);
+            free_list_.push_back(slot);
             return;
         }
 
         assert(next_slot_ > 0);
-        Block& block = blocks_[current_block_];
-        assert(slot.object == block.data + next_slot_ - 1);
+        assert(slot.object == blocks_[slot.block_index].data + next_slot_ - 1);
         --next_slot_;
-        block.used = next_slot_;
-    }
-
-    [[nodiscard]] Block& block_for(const T* object) noexcept {
-        for (Block& block : blocks_) {
-            if (block.contains(object)) {
-                return block;
-            }
-        }
-
-        assert(false && "block_for: pointer not owned by this pool");
-        std::terminate();
-    }
-
-    [[nodiscard]] const Block& block_for(const T* object) const noexcept {
-        for (const Block& block : blocks_) {
-            if (block.contains(object)) {
-                return block;
-            }
-        }
-
-        assert(false && "block_for: pointer not owned by this pool");
-        std::terminate();
-    }
-
-    [[nodiscard]] bool is_live(const T* object) const noexcept {
-        const Block& block = block_for(object);
-        return block.live[block.index_of(object)];
-    }
-
-    void set_live(T* object, bool live) noexcept {
-        Block& block = block_for(object);
-        block.live[block.index_of(object)] = live;
+        blocks_[slot.block_index].used = next_slot_;
     }
 
     void destroy_live_objects() noexcept(std::is_nothrow_destructible_v<T>) {
@@ -306,7 +312,8 @@ private:
     }
 
     std::vector<Block> blocks_{};
-    std::vector<T*> free_list_{};
+    std::vector<IndexEntry> block_map_{};
+    std::vector<Slot> free_list_{};
     std::size_t current_block_ = 0;
     std::size_t next_slot_ = 0;
     std::size_t size_ = 0;
