@@ -131,7 +131,7 @@ RTreeInsertResult<RTreeNode<T, Scalar, MaxChildren>> insert(
 
     if (!leaf->can_append_entry()) {
         TALUS_ASSERT(false && "insert requires split handling before appending past overflow");
-        return {leaf, leaf, false};
+        return {leaf, nullptr, false};
     }
 
     leaf->append_value(entry_bounds, std::forward<U>(value));
