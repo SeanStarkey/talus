@@ -126,6 +126,31 @@ void test_insert_reports_overflow_without_splitting() {
     assert(root.count() == Node::entry_capacity);
 }
 
+// Verifies that refresh_ancestor_bounds propagates through more than one level.
+// Tree shape: root(internal) -> mid(internal) -> leaf
+void test_insert_refreshes_bounds_three_levels_deep() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root(false);
+    Node mid(false);
+    Node leaf;
+
+    leaf.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 1);
+    mid.append_child(leaf.bounds(), &leaf);
+    root.append_child(mid.bounds(), &mid);
+
+    // Insert expands leaf bounds, which must propagate through mid and then root.
+    auto result = talus::detail::insert(root, Box{{5.0, 5.0}, {6.0, 6.0}}, 2);
+
+    assert(result.inserted);
+    assert(result.leaf == &leaf);
+
+    const Box expected{{0.0, 0.0}, {6.0, 6.0}};
+    assert((leaf.bounds() == expected));
+    assert((mid.child_at(0).bounds == expected));   // mid's stored child bounds updated
+    assert((root.child_at(0).bounds == expected));  // root's stored child bounds updated
+}
+
 } // namespace
 
 int main() {
@@ -135,4 +160,5 @@ int main() {
     test_insert_appends_to_root_leaf();
     test_insert_routes_to_child_and_refreshes_ancestor_bounds();
     test_insert_reports_overflow_without_splitting();
+    test_insert_refreshes_bounds_three_levels_deep();
 }
