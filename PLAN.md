@@ -66,15 +66,18 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 the tree logic that operates on `RTreeNode` objects from `node.hpp`. Implement
 and test in this order:
 
-1. Completed: ChooseLeaf
+1. Refine ChooseLeaf to R*-tree ChooseSubtree semantics
+   - Completed: basic minimum-area-enlargement descent
+   - Next: when choosing among leaf children, minimize overlap enlargement first, then area enlargement and area
 2. In progress: Insert without split handling
 3. SplitNode
 4. AdjustTree
 5. Search
 
-Do not start NearestNeighbor, Delete, or STR bulk load until Insert and Search
-correctness is solid. Each step should have focused tests before moving to the
-next one.
+Do not start SplitNode until the R*-tree overlap-aware ChooseLeaf behavior is
+covered by focused tests. Do not start NearestNeighbor, Delete, or STR bulk load
+until Insert and Search correctness is solid. Each step should have focused
+tests before moving to the next one.
 
 ### 5. Add the Brute-force Oracle
 
@@ -117,6 +120,9 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Continue `include/talus/detail/algorithms.hpp` by implementing SplitNode, then
-complete Insert/AdjustTree around split propagation. `rtree.hpp` is the public
-wrapper that comes after internal insertion and search are correct.
+Continue `include/talus/detail/algorithms.hpp` by refining ChooseLeaf with the
+R*-tree overlap-enlargement rule for leaf-child selection. Add a focused test
+where overlap enlargement chooses a different child than area enlargement. Then
+implement SplitNode and complete Insert/AdjustTree around split propagation.
+`rtree.hpp` is the public wrapper that comes after internal insertion and search
+are correct.
