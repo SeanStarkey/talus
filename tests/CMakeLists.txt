@@ -21,3 +21,11 @@ add_executable(talus_node_tests
 target_link_libraries(talus_node_tests PRIVATE talus::talus)
 
 add_test(NAME talus_node_tests COMMAND talus_node_tests)
+
+add_executable(talus_algorithms_tests
+    algorithms_tests.cpp
+)
+
+target_link_libraries(talus_algorithms_tests PRIVATE talus::talus)
+
+add_test(NAME talus_algorithms_tests COMMAND talus_algorithms_tests)

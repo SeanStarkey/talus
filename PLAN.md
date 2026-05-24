@@ -9,10 +9,12 @@ Talus is currently a clean Phase 1 skeleton. The implemented project surface is:
 - `include/talus/talus.hpp`
 - `include/talus/detail/pool_alloc.hpp`
 - `include/talus/detail/node.hpp`
+- `include/talus/detail/algorithms.hpp`
 - `CMakeLists.txt`
 
-The R-tree implementation has started with storage primitives. The node layout
-is in place; higher-level R-tree algorithms have not started yet.
+The R-tree implementation has started with storage primitives and the first
+algorithm slice. Node layout, ChooseLeaf, and non-splitting Insert are in place;
+SplitNode and higher-level tree adjustment are next.
 
 The following scaffolding directories currently contain placeholder CMake files:
 
@@ -64,8 +66,8 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 the tree logic that operates on `RTreeNode` objects from `node.hpp`. Implement
 and test in this order:
 
-1. ChooseLeaf
-2. Insert
+1. Completed: ChooseLeaf
+2. In progress: Insert without split handling
 3. SplitNode
 4. AdjustTree
 5. Search
@@ -115,6 +117,6 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Implement `include/talus/detail/algorithms.hpp`, starting with ChooseLeaf and
-Insert. This is the R*-tree core; `rtree.hpp` is the public wrapper that comes
-after, not before.
+Continue `include/talus/detail/algorithms.hpp` by implementing SplitNode, then
+complete Insert/AdjustTree around split propagation. `rtree.hpp` is the public
+wrapper that comes after internal insertion and search are correct.
