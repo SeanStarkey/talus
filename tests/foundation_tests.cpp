@@ -61,7 +61,9 @@ static_assert(talus::Pointlike<PointWithBounds>);
 static_assert(talus::Indexable<XYPoint>);
 static_assert(talus::Indexable<LatLonPoint>);
 static_assert(talus::Indexable<BoundedObject>);
+static_assert(talus::Indexable<BoundedObject, float>);
 static_assert(talus::Indexable<BoundedFloatObject, float>);
+static_assert(talus::Indexable<PointWithBounds, float>);
 static_assert(talus::CoordExtractor<CustomExtractor, XYPoint>);
 static_assert(talus::CoordExtractor<FloatExtractor, XYPoint, float>);
 

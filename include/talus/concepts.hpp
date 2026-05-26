@@ -57,8 +57,11 @@ template<typename T>
 concept Pointlike = HasXY<T> || HasLatLon<T>;
 
 /// @brief Matches types that can be indexed directly by Talus.
+///
+/// Bounded objects use the same scalar-agnostic detection as `bounding_box_of()`,
+/// so `Indexable<T, Scalar>` accepts bounds that can be cast to `Scalar`.
 template<typename T, typename Scalar = double>
-concept Indexable = Pointlike<T> || HasBounds<T, Scalar>;
+concept Indexable = Pointlike<T> || HasBoundsAny<T>;
 
 /// @brief Matches callables that extract a bounding box from otherwise opaque types.
 ///

@@ -45,7 +45,7 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 ### 2. Harden Foundation APIs
 
 - Completed: use `Scalar` for index internals and coordinate extraction.
-- Completed: make `HasBounds`, `Indexable`, `CoordExtractor`, and `bounding_box_of()` scalar-aware.
+- Completed: make `HasBounds`, `Indexable`, `CoordExtractor`, and `bounding_box_of()` scalar-aware, including cross-scalar bounded objects.
 - Completed: resolve `Pointlike && HasBounds` precedence by preferring `.bounds()`.
 - Completed: add tests for point equality, bounding-box containment, edge-touching intersections, expansion, area, enlarged area, center, minimum squared distance, segment bounds, `.x/.y`/`.lat/.lon`/`.bounds()` extraction, scalar-aware extraction, and `.bounds()` precedence over point fields.
 
