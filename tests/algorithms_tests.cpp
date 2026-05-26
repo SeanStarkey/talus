@@ -172,6 +172,77 @@ void test_insert_refreshes_bounds_three_levels_deep() {
     assert((root.child_at(0).bounds == expected));  // root's stored child bounds updated
 }
 
+// choose_leaf on a leaf root returns it immediately without descending.
+void test_choose_leaf_returns_leaf_root_directly() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root; // leaf by default
+    root.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 1);
+
+    Node* chosen = talus::detail::choose_leaf(root, Box{{5.0, 5.0}, {5.0, 5.0}});
+
+    assert(chosen == &root);
+}
+
+// Three-level tree: root(internal) → branch(internal) → leaf.
+// First level uses area-enlargement (children of root are internal, not leaves).
+// Second level uses overlap-enlargement (children of branch are leaves).
+// Verifies that choose_leaf traverses both levels and lands on the right leaf.
+void test_choose_leaf_descends_through_internal_nodes() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root(false);
+    Node branch_near(false);
+    Node branch_far(false);
+    Node leaf_near;
+    Node leaf_far;
+
+    leaf_near.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 1);
+    leaf_far.append_value(Box{{10.0, 10.0}, {11.0, 11.0}}, 2);
+
+    branch_near.append_child(leaf_near.bounds(), &leaf_near);
+    branch_far.append_child(leaf_far.bounds(), &leaf_far);
+
+    root.append_child(branch_near.bounds(), &branch_near);
+    root.append_child(branch_far.bounds(), &branch_far);
+
+    // (10.5, 10.5) requires zero enlargement in branch_far at both levels.
+    Node* chosen = talus::detail::choose_leaf(root, Box{{10.5, 10.5}, {10.5, 10.5}});
+
+    assert(chosen == &leaf_far);
+}
+
+// Three-level tree where the first-level decision is forced by area-enlargement,
+// not overlap-enlargement. branch_a has a large existing area so inserting a point
+// inside it costs zero area growth; branch_b would require growth. At the root level
+// the children are internal nodes (area-enlargement mode), so branch_a is chosen
+// even though it has higher sibling overlap, which is what an overlap-first strategy
+// would penalise.
+void test_choose_leaf_uses_area_enlargement_at_internal_level() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root(false);
+    Node branch_a(false); // large bounding box that already contains the target
+    Node branch_b(false); // small bounding box far from the target
+    Node leaf_a;
+    Node leaf_b;
+
+    leaf_a.append_value(Box{{0.0, 0.0}, {100.0, 100.0}}, 1);
+    leaf_b.append_value(Box{{200.0, 200.0}, {201.0, 201.0}}, 2);
+
+    branch_a.append_child(leaf_a.bounds(), &leaf_a);
+    branch_b.append_child(leaf_b.bounds(), &leaf_b);
+
+    root.append_child(branch_a.bounds(), &branch_a);
+    root.append_child(branch_b.bounds(), &branch_b);
+
+    // (50, 50) is already inside branch_a (zero area growth) so it wins despite
+    // branch_b having zero overlap with branch_a at this level.
+    Node* chosen = talus::detail::choose_leaf(root, Box{{50.0, 50.0}, {50.0, 50.0}});
+
+    assert(chosen == &leaf_a);
+}
+
 } // namespace
 
 int main() {
@@ -179,6 +250,9 @@ int main() {
     test_choose_leaf_tie_breaks_by_smaller_area();
     test_choose_leaf_tie_breaks_by_fewer_entries();
     test_choose_leaf_prefers_overlap_enlargement_for_leaf_children();
+    test_choose_leaf_returns_leaf_root_directly();
+    test_choose_leaf_descends_through_internal_nodes();
+    test_choose_leaf_uses_area_enlargement_at_internal_level();
     test_insert_appends_to_root_leaf();
     test_insert_routes_to_child_and_refreshes_ancestor_bounds();
     test_insert_reports_overflow_without_splitting();
