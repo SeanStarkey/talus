@@ -21,3 +21,20 @@
 #  define TALUS_ASSERT(cond) \
      do { if (!(cond)) [[unlikely]] { std::terminate(); } } while (false)
 #endif
+
+/// @brief Marks a code path that must never be reached at runtime.
+///
+/// In debug builds the path is left reachable so sanitizers and debuggers can
+/// catch it. In release builds with hardened checks disabled, the compiler hint
+/// allows dead-code elimination without UB. Otherwise std::terminate() is called.
+#ifndef NDEBUG
+#  define TALUS_UNREACHABLE() assert(false && "unreachable")
+#elif defined(TALUS_DISABLE_HARDENED_CHECKS)
+#  if defined(__GNUC__) || defined(__clang__)
+#    define TALUS_UNREACHABLE() __builtin_unreachable()
+#  else
+#    define TALUS_UNREACHABLE() ((void)0)
+#  endif
+#else
+#  define TALUS_UNREACHABLE() std::terminate()
+#endif

@@ -260,6 +260,7 @@ private:
             }
         }
         TALUS_ASSERT(false && "locate: pointer not owned by this pool");
+        TALUS_UNREACHABLE();
     }
 
     [[nodiscard]] Slot acquire_slot() {
