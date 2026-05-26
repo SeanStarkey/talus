@@ -13,7 +13,7 @@ Talus is currently a clean Phase 1 skeleton. The implemented project surface is:
 - `CMakeLists.txt`
 
 The R-tree implementation has started with storage primitives and the first
-algorithm slice. Node layout, ChooseLeaf, and non-splitting Insert are in place;
+algorithm slice. Node layout, overlap-aware ChooseLeaf, and non-splitting Insert are in place;
 SplitNode and higher-level tree adjustment are next.
 
 The following scaffolding directories currently contain placeholder CMake files:
@@ -66,18 +66,18 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 the tree logic that operates on `RTreeNode` objects from `node.hpp`. Implement
 and test in this order:
 
-1. Refine ChooseLeaf to R*-tree ChooseSubtree semantics
+1. Completed: refine ChooseLeaf to R*-tree ChooseSubtree semantics
    - Completed: basic minimum-area-enlargement descent
-   - Next: when choosing among leaf children, minimize overlap enlargement first, then area enlargement and area
+   - Completed: when choosing among leaf children, minimize overlap enlargement first, then area enlargement and area
 2. In progress: Insert without split handling
 3. SplitNode
 4. AdjustTree
 5. Search
 
-Do not start SplitNode until the R*-tree overlap-aware ChooseLeaf behavior is
-covered by focused tests. Do not start NearestNeighbor, Delete, or STR bulk load
-until Insert and Search correctness is solid. Each step should have focused
-tests before moving to the next one.
+The R*-tree overlap-aware ChooseLeaf behavior is covered by focused tests. Do
+not start NearestNeighbor, Delete, or STR bulk load until Insert and Search
+correctness is solid. Each step should have focused tests before moving to the
+next one.
 
 ### 5. Add the Brute-force Oracle
 
@@ -120,9 +120,8 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Continue `include/talus/detail/algorithms.hpp` by refining ChooseLeaf with the
-R*-tree overlap-enlargement rule for leaf-child selection. Add a focused test
-where overlap enlargement chooses a different child than area enlargement. Then
-implement SplitNode and complete Insert/AdjustTree around split propagation.
+Continue `include/talus/detail/algorithms.hpp` with SplitNode. Add focused
+tests for splitting leaf nodes first, then internal nodes, and keep Insert/
+AdjustTree split propagation scoped until those split invariants are solid.
 `rtree.hpp` is the public wrapper that comes after internal insertion and search
 are correct.

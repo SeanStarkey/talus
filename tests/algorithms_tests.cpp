@@ -68,6 +68,27 @@ void test_choose_leaf_tie_breaks_by_fewer_entries() {
     assert(chosen == &sparse);
 }
 
+void test_choose_leaf_prefers_overlap_enlargement_for_leaf_children() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root(false);
+    Node area_preferred_by_plain_rtree;
+    Node existing_neighbor;
+    Node overlap_preferred_by_rstar;
+
+    area_preferred_by_plain_rtree.append_value(Box{{0.0, 0.0}, {100.0, 1.0}}, 1);
+    existing_neighbor.append_value(Box{{-100.0, -100.0}, {25.0, 1.05}}, 2);
+    overlap_preferred_by_rstar.append_value(Box{{50.0, -100.0}, {51.0, -99.0}}, 3);
+
+    root.append_child(area_preferred_by_plain_rtree.bounds(), &area_preferred_by_plain_rtree);
+    root.append_child(existing_neighbor.bounds(), &existing_neighbor);
+    root.append_child(overlap_preferred_by_rstar.bounds(), &overlap_preferred_by_rstar);
+
+    Node* chosen = talus::detail::choose_leaf(root, Box{{50.0, 1.2}, {50.0, 1.2}});
+
+    assert(chosen == &overlap_preferred_by_rstar);
+}
+
 void test_insert_appends_to_root_leaf() {
     using Node = talus::detail::RTreeNode<Payload, double, 4>;
 
@@ -157,6 +178,7 @@ int main() {
     test_choose_leaf_selects_minimum_enlargement();
     test_choose_leaf_tie_breaks_by_smaller_area();
     test_choose_leaf_tie_breaks_by_fewer_entries();
+    test_choose_leaf_prefers_overlap_enlargement_for_leaf_children();
     test_insert_appends_to_root_leaf();
     test_insert_routes_to_child_and_refreshes_ancestor_bounds();
     test_insert_reports_overflow_without_splitting();
