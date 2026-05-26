@@ -2,7 +2,8 @@
 
 ## Current State
 
-Talus is currently a clean Phase 1 skeleton. The implemented project surface is:
+Talus has completed its Phase 1 foundation and is now in Phase 2 R*-tree core
+work. The implemented project surface is:
 
 - `include/talus/geometry.hpp`
 - `include/talus/concepts.hpp`
@@ -13,8 +14,8 @@ Talus is currently a clean Phase 1 skeleton. The implemented project surface is:
 - `CMakeLists.txt`
 
 The R-tree implementation has started with storage primitives and the first
-algorithm slice. Node layout, overlap-aware ChooseLeaf, and non-splitting Insert are in place;
-SplitNode and higher-level tree adjustment are next.
+algorithm slice. Node layout, overlap-aware ChooseLeaf, and non-splitting Insert
+are in place; SplitNode and higher-level tree adjustment are next.
 
 The following scaffolding directories currently contain placeholder CMake files:
 
@@ -69,7 +70,7 @@ and test in this order:
 1. Completed: refine ChooseLeaf to R*-tree ChooseSubtree semantics
    - Completed: basic minimum-area-enlargement descent
    - Completed: when choosing among leaf children, minimize overlap enlargement first, then area enlargement and area
-2. In progress: Insert without split handling
+2. Completed: Insert without split handling
 3. SplitNode
 4. AdjustTree
 5. Search
