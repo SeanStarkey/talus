@@ -13,6 +13,84 @@ struct Payload {
     std::string label;
 };
 
+void test_overlap_enlargement_no_siblings() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node parent(false);
+    Node child;
+    child.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 1);
+    parent.append_child(child.bounds(), &child);
+
+    double delta = talus::detail::overlap_enlargement(parent, 0, Box{{0.0, 0.0}, {5.0, 5.0}});
+    assert(delta == 0.0);
+}
+
+void test_overlap_enlargement_no_new_overlap() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node parent(false);
+    Node child_a, child_b;
+    child_a.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 1);
+    child_b.append_value(Box{{10.0, 10.0}, {11.0, 11.0}}, 2);
+    parent.append_child(child_a.bounds(), &child_a);
+    parent.append_child(child_b.bounds(), &child_b);
+
+    // Expanding child_a to {0,0}-{3,3} still does not reach child_b.
+    double delta = talus::detail::overlap_enlargement(parent, 0, Box{{0.0, 0.0}, {3.0, 3.0}});
+    assert(delta == 0.0);
+}
+
+void test_overlap_enlargement_creates_new_overlap() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node parent(false);
+    Node child_a, child_b;
+    child_a.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 1);
+    child_b.append_value(Box{{2.0, 0.0}, {3.0, 1.0}}, 2);
+    parent.append_child(child_a.bounds(), &child_a);
+    parent.append_child(child_b.bounds(), &child_b);
+
+    // No current overlap. Expanding child_a to {0,0}-{2.5,1} creates 0.5×1=0.5 overlap.
+    double delta = talus::detail::overlap_enlargement(parent, 0, Box{{0.0, 0.0}, {2.5, 1.0}});
+    assert(delta == 0.5);
+}
+
+void test_overlap_enlargement_increases_existing_overlap() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node parent(false);
+    Node child_a, child_b;
+    child_a.append_value(Box{{0.0, 0.0}, {2.0, 2.0}}, 1);
+    child_b.append_value(Box{{1.0, 0.0}, {3.0, 2.0}}, 2);
+    parent.append_child(child_a.bounds(), &child_a);
+    parent.append_child(child_b.bounds(), &child_b);
+
+    // Current overlap: {1,0}-{2,2} = 1×2 = 2.
+    // After expanding child_a to {0,0}-{3,2}: overlap is {1,0}-{3,2} = 2×2 = 4. Delta = 2.
+    double delta = talus::detail::overlap_enlargement(parent, 0, Box{{0.0, 0.0}, {3.0, 2.0}});
+    assert(delta == 2.0);
+}
+
+void test_overlap_enlargement_sums_multiple_siblings() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node parent(false);
+    Node child_a, child_b, child_c;
+    child_a.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 1);
+    child_b.append_value(Box{{2.0, 0.0}, {3.0, 1.0}}, 2);
+    child_c.append_value(Box{{0.0, 2.0}, {1.0, 3.0}}, 3);
+    parent.append_child(child_a.bounds(), &child_a);
+    parent.append_child(child_b.bounds(), &child_b);
+    parent.append_child(child_c.bounds(), &child_c);
+
+    // Expanding child_a to {0,0}-{2.5,2.5}:
+    //   overlap with child_b: {2,0}-{2.5,1} = 0.5×1 = 0.5 (was 0)
+    //   overlap with child_c: {0,2}-{1,2.5} = 1×0.5 = 0.5 (was 0)
+    //   total delta = 1.0
+    double delta = talus::detail::overlap_enlargement(parent, 0, Box{{0.0, 0.0}, {2.5, 2.5}});
+    assert(delta == 1.0);
+}
+
 void test_choose_leaf_selects_minimum_enlargement() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -246,6 +324,11 @@ void test_choose_leaf_uses_area_enlargement_at_internal_level() {
 } // namespace
 
 int main() {
+    test_overlap_enlargement_no_siblings();
+    test_overlap_enlargement_no_new_overlap();
+    test_overlap_enlargement_creates_new_overlap();
+    test_overlap_enlargement_increases_existing_overlap();
+    test_overlap_enlargement_sums_multiple_siblings();
     test_choose_leaf_selects_minimum_enlargement();
     test_choose_leaf_tie_breaks_by_smaller_area();
     test_choose_leaf_tie_breaks_by_fewer_entries();
