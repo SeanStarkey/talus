@@ -65,6 +65,13 @@ static_assert(talus::Indexable<BoundedFloatObject, float>);
 static_assert(talus::CoordExtractor<CustomExtractor, XYPoint>);
 static_assert(talus::CoordExtractor<FloatExtractor, XYPoint, float>);
 
+// HasBoundsAny: scalar-agnostic — matches whenever .bounds() returns any BoundingBox.
+static_assert(talus::HasBoundsAny<BoundedObject>);       // bounds() → BoundingBox<double>
+static_assert(talus::HasBoundsAny<BoundedFloatObject>);  // bounds() → BoundingBox<float>
+static_assert(talus::HasBoundsAny<PointWithBounds>);     // has both .x/.y and .bounds()
+static_assert(!talus::HasBoundsAny<XYPoint>);            // no .bounds()
+static_assert(!talus::HasBoundsAny<LatLonPoint>);        // no .bounds()
+
 void test_geometry() {
     using talus::BoundingBox;
     using talus::Point;
@@ -234,6 +241,18 @@ void test_concepts() {
     // confirm the x/y values (1.0, 2.0) were NOT used
     static_assert(point_with_bounds_box.min.x == -5.0);
     static_assert(point_with_bounds_box.min.y == -6.0);
+
+    // ── cross-scalar extraction: float Scalar, double .bounds() ───────────────
+    // BoundedObject::bounds() returns BoundingBox<double>. Requesting float scalar
+    // should cast the coordinates, not fall back to point fields or fail to compile.
+    constexpr auto cross_scalar_box = talus::bounding_box_of<float>(BoundedObject{});
+    static_assert(cross_scalar_box == talus::BoundingBox<float>{{-1.0F, -2.0F}, {3.0F, 4.0F}});
+
+    // PointWithBounds has both .x/.y (1.0, 2.0) and .bounds() returning {-5,-6},{7,8}.
+    // Even with float scalar, .bounds() must still win over .x/.y.
+    constexpr auto pwb_float_box = talus::bounding_box_of<float>(PointWithBounds{1.0, 2.0});
+    static_assert(pwb_float_box == talus::BoundingBox<float>{{-5.0F, -6.0F}, {7.0F, 8.0F}});
+    static_assert(pwb_float_box.min.x == -5.0F); // x/y values (1.0, 2.0) were NOT used
 }
 
 } // namespace

@@ -28,9 +28,28 @@ concept HasLatLon = requires(const T& t) {
 };
 
 /// @brief Matches types exposing `.bounds()` convertible to `BoundingBox<Scalar>`.
+///
+/// Use this when code must work directly with `BoundingBox<Scalar>` values.
+/// For coordinate extraction, prefer `bounding_box_of()` which handles
+/// scalar mismatches automatically via `HasBoundsAny`.
 template<typename T, typename Scalar = double>
 concept HasBounds = requires(const T& t) {
     { t.bounds() } -> std::convertible_to<BoundingBox<Scalar>>;
+};
+
+/// @brief Matches types exposing `.bounds()` returning any BoundingBox specialisation.
+///
+/// Unlike `HasBounds<T, Scalar>`, this concept is scalar-agnostic: it matches
+/// whenever `.bounds()` returns a `BoundingBox` regardless of its coordinate type.
+/// `bounding_box_of()` uses this concept so that a type whose `.bounds()` returns
+/// `BoundingBox<double>` can still be extracted with `bounding_box_of<float>()` —
+/// the coordinate values are cast to the requested scalar.
+template<typename T>
+concept HasBoundsAny = requires(const T& t) {
+    t.bounds().min.x;
+    t.bounds().min.y;
+    t.bounds().max.x;
+    t.bounds().max.y;
 };
 
 /// @brief Matches point-like user types recognized without adapters.
@@ -55,9 +74,11 @@ concept CoordExtractor = requires(Extractor e, const T& t) {
 
 /// @brief Extracts a point-sized bounding box from `.x/.y` or `.lat/.lon` fields.
 ///
-/// Geographic-style values use `lon` as x and `lat` as y.
+/// Geographic-style values use `lon` as x and `lat` as y. This overload is
+/// skipped whenever `.bounds()` is present — `HasBoundsAny` wins regardless of
+/// whether the bounds scalar matches the requested Scalar.
 template<typename Scalar = double, Pointlike T>
-    requires (!HasBounds<T, Scalar>)
+    requires (!HasBoundsAny<T>)
 [[nodiscard]] constexpr BoundingBox<Scalar> bounding_box_of(const T& v) noexcept {
     if constexpr (HasXY<T>) {
         Scalar x = static_cast<Scalar>(v.x);
@@ -71,13 +92,20 @@ template<typename Scalar = double, Pointlike T>
     }
 }
 
-/// @brief Extracts a bounding box by calling `.bounds()`.
+/// @brief Extracts a bounding box by calling `.bounds()`, casting to the requested Scalar.
 ///
-/// This overload takes precedence when a type also has point-like fields.
+/// This overload takes precedence over point-field extraction whenever `.bounds()` is
+/// present, even when the bounds return type uses a different scalar. Coordinates are
+/// cast explicitly so that e.g. `bounding_box_of<float>()` works on a type whose
+/// `.bounds()` returns `BoundingBox<double>`.
 template<typename Scalar = double, typename T>
-    requires HasBounds<T, Scalar>
+    requires HasBoundsAny<T>
 [[nodiscard]] constexpr BoundingBox<Scalar> bounding_box_of(const T& v) {
-    return static_cast<BoundingBox<Scalar>>(v.bounds());
+    auto b = v.bounds();
+    return {
+        {static_cast<Scalar>(b.min.x), static_cast<Scalar>(b.min.y)},
+        {static_cast<Scalar>(b.max.x), static_cast<Scalar>(b.max.y)}
+    };
 }
 
 } // namespace talus
