@@ -5,7 +5,9 @@
 ///
 /// Defines the leaf and internal entry storage used by the R-tree. `RTreeNode`
 /// owns value lifetimes explicitly so leaves can store arbitrary user-provided
-/// types, including non-default-constructible, move-only, and immovable classes.
+/// types, including non-default-constructible and move-only classes. Immovable
+/// values can be emplaced, but operations that relocate leaf entries require
+/// move-constructible values.
 /// This header intentionally contains storage mechanics only; insertion,
 /// splitting, search, and deletion algorithms live in later detail headers.
 
@@ -63,7 +65,8 @@ struct RTreeChildEntry {
 ///
 /// The node owns the lifetimes of constructed entries in raw storage. It has one
 /// overflow slot beyond `MaxChildren` so insertion can temporarily exceed normal
-/// capacity before split logic runs.
+/// capacity before split logic runs. Leaf entry relocation, used by removal and
+/// upcoming split code, requires move-constructible value entries.
 template<typename T, typename Scalar, std::size_t MaxChildren>
 class alignas(64) RTreeNode {
     static_assert(MaxChildren >= 4, "RTreeNode requires MaxChildren >= 4");
@@ -92,6 +95,10 @@ public:
 
     /// Physical entry capacity, including one overflow slot.
     static constexpr std::size_t entry_capacity = MaxChildren + 1;
+
+    /// True when leaf entries can be move-constructed during compaction or splits.
+    static constexpr bool can_relocate_value_entries =
+        std::is_move_constructible_v<value_entry_type>;
 
     /// @brief Constructs an empty leaf node by default, or internal node when false.
     explicit constexpr RTreeNode(bool leaf = true) noexcept
@@ -294,6 +301,8 @@ public:
         if (is_leaf_) {
             std::destroy_at(value_entry(index));
             if (index != last) {
+                static_assert(can_relocate_value_entries,
+                    "RTreeNode::remove_at requires move-constructible value entries");
                 std::construct_at(value_entry(index), std::move(*value_entry(last)));
                 std::destroy_at(value_entry(last));
             }

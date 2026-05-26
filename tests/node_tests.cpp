@@ -129,6 +129,8 @@ void test_leaf_node_stores_non_default_constructible_values() {
 void test_leaf_node_supports_move_only_values_and_overflow_slot() {
     using Node = talus::detail::RTreeNode<MoveOnlyValue, double, 4>;
 
+    static_assert(Node::can_relocate_value_entries);
+
     Node node;
 
     node.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, MoveOnlyValue{0});
@@ -152,6 +154,8 @@ void test_leaf_node_supports_move_only_values_and_overflow_slot() {
 
 void test_leaf_node_emplaces_immovable_values() {
     using Node = talus::detail::RTreeNode<ImmovableValue, double, 4>;
+
+    static_assert(!Node::can_relocate_value_entries);
 
     Node node;
 

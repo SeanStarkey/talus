@@ -54,7 +54,7 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 - Completed: add `include/talus/detail/pool_alloc.hpp`.
 - Completed: add `include/talus/detail/node.hpp`.
 - Completed: test pool allocation, reset/clear behavior, slot reuse, alignment, and capacity.
-- Completed: test node alignment, node capacity, leaf/internal invariants, parent links, and non-trivial/move-only value storage.
+- Completed: test node alignment, node capacity, leaf/internal invariants, parent links, non-trivial/move-only value storage, and immovable value emplacement boundaries.
 - Completed: add and test pool reserve/preallocation for large builds.
 - Completed: harden pool reserve block-count calculation against size overflow.
 - Completed: harden pool destroy against interior pointers into valid blocks.
