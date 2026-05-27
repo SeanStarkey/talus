@@ -321,6 +321,108 @@ void test_choose_leaf_uses_area_enlargement_at_internal_level() {
     assert(chosen == &leaf_a);
 }
 
+bool leaf_contains_value(const talus::detail::RTreeNode<int, double, 4>& node, int value) {
+    for (const auto& entry : node.values()) {
+        if (entry.value == value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool internal_contains_child(
+    const talus::detail::RTreeNode<int, double, 4>& node,
+    const talus::detail::RTreeNode<int, double, 4>* child) {
+    for (const auto& entry : node.children()) {
+        if (entry.child == child) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void test_split_node_redistributes_leaf_entries() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node;
+    Node sibling;
+
+    node.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 0);
+    node.append_value(Box{{1.0, 0.0}, {1.0, 0.0}}, 1);
+    node.append_value(Box{{2.0, 0.0}, {2.0, 0.0}}, 2);
+    node.append_value(Box{{100.0, 0.0}, {100.0, 0.0}}, 100);
+    node.append_value(Box{{101.0, 0.0}, {101.0, 0.0}}, 101);
+
+    auto result = talus::detail::split_node(node, sibling);
+
+    assert(result.split);
+    assert(result.left == &node);
+    assert(result.right == &sibling);
+    assert(node.is_leaf());
+    assert(sibling.is_leaf());
+    assert(!node.has_overflow());
+    assert(!sibling.has_overflow());
+    assert(!node.underfull());
+    assert(!sibling.underfull());
+    assert(node.count() + sibling.count() == Node::entry_capacity);
+
+    for (int value : {0, 1, 2, 100, 101}) {
+        assert(leaf_contains_value(node, value) || leaf_contains_value(sibling, value));
+    }
+
+    assert((node.bounds().max.x <= 2.0 && sibling.bounds().min.x >= 100.0)
+        || (sibling.bounds().max.x <= 2.0 && node.bounds().min.x >= 100.0));
+}
+
+void test_split_node_redistributes_internal_entries_and_updates_parents() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node parent(false);
+    Node node(false);
+    Node sibling;
+    Node child0;
+    Node child1;
+    Node child2;
+    Node child100;
+    Node child101;
+
+    child0.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 0);
+    child1.append_value(Box{{1.0, 0.0}, {1.0, 0.0}}, 1);
+    child2.append_value(Box{{2.0, 0.0}, {2.0, 0.0}}, 2);
+    child100.append_value(Box{{100.0, 0.0}, {100.0, 0.0}}, 100);
+    child101.append_value(Box{{101.0, 0.0}, {101.0, 0.0}}, 101);
+
+    node.append_child(child0.bounds(), &child0);
+    node.append_child(child1.bounds(), &child1);
+    node.append_child(child2.bounds(), &child2);
+    node.append_child(child100.bounds(), &child100);
+    node.append_child(child101.bounds(), &child101);
+    parent.append_child(node.bounds(), &node);
+
+    auto result = talus::detail::split_node(node, sibling);
+
+    assert(result.split);
+    assert(result.left == &node);
+    assert(result.right == &sibling);
+    assert(node.is_internal());
+    assert(sibling.is_internal());
+    assert(node.parent() == &parent);
+    assert(sibling.parent() == &parent);
+    assert(!node.has_overflow());
+    assert(!sibling.has_overflow());
+    assert(!node.underfull());
+    assert(!sibling.underfull());
+    assert(node.count() + sibling.count() == Node::entry_capacity);
+
+    for (Node* child : {&child0, &child1, &child2, &child100, &child101}) {
+        assert(internal_contains_child(node, child) || internal_contains_child(sibling, child));
+        assert(child->parent() == &node || child->parent() == &sibling);
+    }
+
+    assert((node.bounds().max.x <= 2.0 && sibling.bounds().min.x >= 100.0)
+        || (sibling.bounds().max.x <= 2.0 && node.bounds().min.x >= 100.0));
+}
+
 } // namespace
 
 int main() {
@@ -340,4 +442,6 @@ int main() {
     test_insert_routes_to_child_and_refreshes_ancestor_bounds();
     test_insert_reports_overflow_without_splitting();
     test_insert_refreshes_bounds_three_levels_deep();
+    test_split_node_redistributes_leaf_entries();
+    test_split_node_redistributes_internal_entries_and_updates_parents();
 }

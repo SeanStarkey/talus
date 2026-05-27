@@ -8,9 +8,11 @@
 /// that have already been allocated by that wrapper or by tests.
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <limits>
 #include <utility>
+#include <vector>
 
 #include "assert.hpp"
 #include "node.hpp"
@@ -175,6 +177,246 @@ template<typename T, typename Scalar, std::size_t MaxChildren>
     }
 
     return node;
+}
+
+
+/// @brief Result returned after splitting an overflowing node.
+template<typename Node>
+struct RTreeSplitResult {
+    /// Original node after redistribution.
+    Node* left = nullptr;
+
+    /// Caller-provided sibling node after redistribution.
+    Node* right = nullptr;
+
+    /// True when redistribution completed.
+    bool split = false;
+};
+
+namespace split_detail {
+
+template<typename Scalar, std::size_t Capacity>
+struct SplitChoice {
+    std::array<std::size_t, Capacity> order{};
+    std::size_t left_count = 0;
+};
+
+template<typename Scalar, std::size_t Capacity>
+void sort_order(
+    std::array<std::size_t, Capacity>& order,
+    const std::array<BoundingBox<Scalar>, Capacity>& bounds,
+    std::size_t count,
+    std::size_t axis,
+    bool use_max) {
+    std::sort(order.begin(), order.begin() + static_cast<std::ptrdiff_t>(count),
+        [&](std::size_t lhs, std::size_t rhs) {
+            const auto& left = bounds[lhs];
+            const auto& right = bounds[rhs];
+            const Scalar left_primary = axis == 0
+                ? (use_max ? left.max.x : left.min.x)
+                : (use_max ? left.max.y : left.min.y);
+            const Scalar right_primary = axis == 0
+                ? (use_max ? right.max.x : right.min.x)
+                : (use_max ? right.max.y : right.min.y);
+            if (left_primary != right_primary) {
+                return left_primary < right_primary;
+            }
+
+            const Scalar left_secondary = axis == 0
+                ? (use_max ? left.max.y : left.min.y)
+                : (use_max ? left.max.x : left.min.x);
+            const Scalar right_secondary = axis == 0
+                ? (use_max ? right.max.y : right.min.y)
+                : (use_max ? right.max.x : right.min.x);
+            if (left_secondary != right_secondary) {
+                return left_secondary < right_secondary;
+            }
+
+            return lhs < rhs;
+        });
+}
+
+template<typename Scalar, std::size_t Capacity>
+[[nodiscard]] BoundingBox<Scalar> ordered_bounds(
+    const std::array<std::size_t, Capacity>& order,
+    const std::array<BoundingBox<Scalar>, Capacity>& bounds,
+    std::size_t first,
+    std::size_t count) noexcept {
+    TALUS_ASSERT(count > 0);
+
+    BoundingBox<Scalar> result = bounds[order[first]];
+    for (std::size_t i = 1; i < count; ++i) {
+        result = result.expand(bounds[order[first + i]]);
+    }
+    return result;
+}
+
+template<typename Scalar, std::size_t Capacity>
+[[nodiscard]] Scalar margin_sum(
+    const std::array<std::size_t, Capacity>& order,
+    const std::array<BoundingBox<Scalar>, Capacity>& bounds,
+    std::size_t count,
+    std::size_t min_children) noexcept {
+    Scalar sum = Scalar{0};
+    for (std::size_t left_count = min_children; left_count <= count - min_children; ++left_count) {
+        const BoundingBox<Scalar> left = ordered_bounds(order, bounds, 0, left_count);
+        const BoundingBox<Scalar> right = ordered_bounds(order, bounds, left_count, count - left_count);
+        sum += (left.max.x - left.min.x) + (left.max.y - left.min.y);
+        sum += (right.max.x - right.min.x) + (right.max.y - right.min.y);
+    }
+    return sum;
+}
+
+template<typename Scalar, std::size_t Capacity>
+[[nodiscard]] SplitChoice<Scalar, Capacity> choose_split(
+    const std::array<BoundingBox<Scalar>, Capacity>& bounds,
+    std::size_t count,
+    std::size_t min_children) {
+    SplitChoice<Scalar, Capacity> best{};
+    std::array<std::size_t, Capacity> base_order{};
+    for (std::size_t i = 0; i < count; ++i) {
+        base_order[i] = i;
+    }
+
+    std::size_t best_axis = 0;
+    Scalar best_margin = std::numeric_limits<Scalar>::infinity();
+    for (std::size_t axis = 0; axis < 2; ++axis) {
+        Scalar axis_margin = Scalar{0};
+        for (bool use_max : {false, true}) {
+            auto order = base_order;
+            sort_order(order, bounds, count, axis, use_max);
+            axis_margin += margin_sum(order, bounds, count, min_children);
+        }
+
+        if (axis_margin < best_margin) {
+            best_axis = axis;
+            best_margin = axis_margin;
+        }
+    }
+
+    Scalar best_overlap = std::numeric_limits<Scalar>::infinity();
+    Scalar best_area = std::numeric_limits<Scalar>::infinity();
+    for (bool use_max : {false, true}) {
+        auto order = base_order;
+        sort_order(order, bounds, count, best_axis, use_max);
+
+        for (std::size_t left_count = min_children; left_count <= count - min_children; ++left_count) {
+            const BoundingBox<Scalar> left = ordered_bounds(order, bounds, 0, left_count);
+            const BoundingBox<Scalar> right = ordered_bounds(order, bounds, left_count, count - left_count);
+            const Scalar overlap = overlap_area(left, right);
+            const Scalar area = left.area() + right.area();
+
+            if (overlap < best_overlap
+                || (overlap == best_overlap && area < best_area)
+                || (overlap == best_overlap && area == best_area && left_count > best.left_count)) {
+                best.order = order;
+                best.left_count = left_count;
+                best_overlap = overlap;
+                best_area = area;
+            }
+        }
+    }
+
+    return best;
+}
+
+template<typename T, typename Scalar, std::size_t MaxChildren>
+void split_leaf_node(
+    RTreeNode<T, Scalar, MaxChildren>& node,
+    RTreeNode<T, Scalar, MaxChildren>& sibling) {
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+    using entry_type = typename node_type::value_entry_type;
+    constexpr std::size_t capacity = node_type::entry_capacity;
+
+    static_assert(node_type::can_relocate_value_entries,
+        "split_node requires move-constructible value entries for leaf nodes");
+
+    const std::size_t count = node.count();
+    std::array<BoundingBox<Scalar>, capacity> bounds{};
+    std::vector<entry_type> entries;
+    entries.reserve(count);
+
+    for (std::size_t i = 0; i < count; ++i) {
+        bounds[i] = node.value_at(i).bounds;
+        entries.emplace_back(std::move(node.value_at(i)));
+    }
+
+    const auto choice = choose_split(bounds, count, node_type::min_children);
+    node_type* parent = node.parent();
+    node.clear();
+    sibling.reset_as_leaf();
+    sibling.set_parent(parent);
+
+    for (std::size_t i = 0; i < choice.left_count; ++i) {
+        entry_type& entry = entries[choice.order[i]];
+        node.append_value(entry.bounds, std::move(entry.value));
+    }
+    for (std::size_t i = choice.left_count; i < count; ++i) {
+        entry_type& entry = entries[choice.order[i]];
+        sibling.append_value(entry.bounds, std::move(entry.value));
+    }
+}
+
+template<typename T, typename Scalar, std::size_t MaxChildren>
+void split_internal_node(
+    RTreeNode<T, Scalar, MaxChildren>& node,
+    RTreeNode<T, Scalar, MaxChildren>& sibling) {
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+    using entry_type = typename node_type::child_entry_type;
+    constexpr std::size_t capacity = node_type::entry_capacity;
+
+    const std::size_t count = node.count();
+    std::array<BoundingBox<Scalar>, capacity> bounds{};
+    std::vector<entry_type> entries;
+    entries.reserve(count);
+
+    for (std::size_t i = 0; i < count; ++i) {
+        bounds[i] = node.child_at(i).bounds;
+        entries.emplace_back(node.child_at(i));
+    }
+
+    const auto choice = choose_split(bounds, count, node_type::min_children);
+    node_type* parent = node.parent();
+    node.clear();
+    sibling.reset_as_internal();
+    sibling.set_parent(parent);
+
+    for (std::size_t i = 0; i < choice.left_count; ++i) {
+        entry_type& entry = entries[choice.order[i]];
+        node.append_child(entry.bounds, entry.child);
+    }
+    for (std::size_t i = choice.left_count; i < count; ++i) {
+        entry_type& entry = entries[choice.order[i]];
+        sibling.append_child(entry.bounds, entry.child);
+    }
+}
+
+} // namespace split_detail
+
+/// @brief Splits an overflowing node into the node and a caller-provided sibling.
+///
+/// The sibling is reset to the same leaf/internal mode as `node`. Parent split
+/// propagation is handled by AdjustTree; this helper only redistributes entries,
+/// recomputes node bounds, and updates child parent pointers for internal nodes.
+template<typename T, typename Scalar, std::size_t MaxChildren>
+RTreeSplitResult<RTreeNode<T, Scalar, MaxChildren>> split_node(
+    RTreeNode<T, Scalar, MaxChildren>& node,
+    RTreeNode<T, Scalar, MaxChildren>& sibling) {
+    TALUS_ASSERT(node.has_overflow());
+    TALUS_ASSERT(&node != &sibling);
+
+    if (node.is_leaf()) {
+        split_detail::split_leaf_node(node, sibling);
+    } else {
+        split_detail::split_internal_node(node, sibling);
+    }
+
+    TALUS_ASSERT(!node.has_overflow());
+    TALUS_ASSERT(!sibling.has_overflow());
+    TALUS_ASSERT(!node.underfull());
+    TALUS_ASSERT(!sibling.underfull());
+
+    return {&node, &sibling, true};
 }
 
 /// @brief Inserts a value into the chosen leaf without performing splits.

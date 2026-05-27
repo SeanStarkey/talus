@@ -14,8 +14,9 @@ work. The implemented project surface is:
 - `CMakeLists.txt`
 
 The R-tree implementation has started with storage primitives and the first
-algorithm slice. Node layout, overlap-aware ChooseLeaf, and non-splitting Insert
-are in place; SplitNode and higher-level tree adjustment are next.
+algorithm slice. Node layout, overlap-aware ChooseLeaf, non-splitting Insert, and the low-level
+SplitNode primitive are in place; higher-level tree adjustment and split
+propagation are next.
 
 The following scaffolding directories currently contain placeholder CMake files:
 
@@ -71,7 +72,7 @@ and test in this order:
    - Completed: basic minimum-area-enlargement descent
    - Completed: when choosing among leaf children, minimize overlap enlargement first, then area enlargement and area
 2. Completed: Insert without split handling
-3. SplitNode
+3. Completed: SplitNode
 4. AdjustTree
 5. Search
 
@@ -121,8 +122,7 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Continue `include/talus/detail/algorithms.hpp` with SplitNode. Add focused
-tests for splitting leaf nodes first, then internal nodes, and keep Insert/
-AdjustTree split propagation scoped until those split invariants are solid.
-`rtree.hpp` is the public wrapper that comes after internal insertion and search
-are correct.
+Continue `include/talus/detail/algorithms.hpp` with AdjustTree and split-aware
+Insert propagation. Reuse the completed low-level SplitNode primitive to update
+parent bounds, attach split siblings, and create a new root when the old root
+splits. Keep `rtree.hpp` until internal insertion and search are correct.
