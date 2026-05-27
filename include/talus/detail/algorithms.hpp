@@ -94,6 +94,7 @@ template<typename T, typename Scalar, std::size_t MaxChildren>
     }
 
     TALUS_ASSERT(false && "child is not attached to parent");
+    TALUS_UNREACHABLE();
     return parent.count();
 }
 
