@@ -83,6 +83,8 @@ bool is_aligned(const void* ptr, std::size_t alignment) {
     return reinterpret_cast<std::uintptr_t>(ptr) % alignment == 0;
 }
 
+// Test: test_leaf_node_stores_non_default_constructible_values
+// Verifies leaf nodes construct, store, clear, and destroy non-default values.
 void test_leaf_node_stores_non_default_constructible_values() {
     using Node = talus::detail::RTreeNode<TrackedValue, double, 4>;
 
@@ -126,6 +128,8 @@ void test_leaf_node_stores_non_default_constructible_values() {
     assert(TrackedValue::constructed == TrackedValue::destroyed);
 }
 
+// Test: test_leaf_node_supports_move_only_values_and_overflow_slot
+// Verifies leaf nodes support move-only values and the temporary overflow slot.
 void test_leaf_node_supports_move_only_values_and_overflow_slot() {
     using Node = talus::detail::RTreeNode<MoveOnlyValue, double, 4>;
 
@@ -152,6 +156,8 @@ void test_leaf_node_supports_move_only_values_and_overflow_slot() {
     assert((node.bounds() == Box{{0.0, 0.0}, {4.0, 4.0}}));
 }
 
+// Test: test_leaf_node_emplaces_immovable_values
+// Verifies immovable values can be emplaced while relocation remains disabled.
 void test_leaf_node_emplaces_immovable_values() {
     using Node = talus::detail::RTreeNode<ImmovableValue, double, 4>;
 
@@ -167,6 +173,8 @@ void test_leaf_node_emplaces_immovable_values() {
     assert((node.bounds() == Box{{-1.0, -1.0}, {1.0, 1.0}}));
 }
 
+// Test: test_internal_node_tracks_children_and_parent_links
+// Verifies internal nodes store child entries and maintain child parent pointers.
 void test_internal_node_tracks_children_and_parent_links() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -197,6 +205,8 @@ void test_internal_node_tracks_children_and_parent_links() {
     assert(right.parent() == nullptr);
 }
 
+// Test: test_leaf_node_update_bounds_recomputes_aggregate
+// Verifies updating entry bounds recomputes the node aggregate bounds.
 void test_leaf_node_update_bounds_recomputes_aggregate() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -215,6 +225,8 @@ void test_leaf_node_update_bounds_recomputes_aggregate() {
     assert((node.bounds() == Box{{-1.0, -1.0}, {4.0, 4.0}}));
 }
 
+// Test: test_reset_changes_node_kind_after_destroying_active_entries
+// Verifies reset switches node kind after destroying entries from the prior mode.
 void test_reset_changes_node_kind_after_destroying_active_entries() {
     using Node = talus::detail::RTreeNode<TrackedValue, double, 4>;
 
@@ -239,6 +251,8 @@ void test_reset_changes_node_kind_after_destroying_active_entries() {
     assert(child.parent() == nullptr);
 }
 
+// Test: test_remove_at_leaf_swaps_last_into_gap
+// Verifies leaf removal compacts by moving the last entry into the removed slot.
 void test_remove_at_leaf_swaps_last_into_gap() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -255,6 +269,8 @@ void test_remove_at_leaf_swaps_last_into_gap() {
     assert((node.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
 }
 
+// Test: test_remove_at_leaf_last_entry
+// Verifies removing the final leaf entry preserves remaining entries and bounds.
 void test_remove_at_leaf_last_entry() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -269,6 +285,8 @@ void test_remove_at_leaf_last_entry() {
     assert((node.bounds() == Box{{0.0, 0.0}, {1.0, 1.0}}));
 }
 
+// Test: test_remove_at_leaf_shrinks_bounds
+// Verifies leaf removal shrinks aggregate bounds when the removed entry was extreme.
 void test_remove_at_leaf_shrinks_bounds() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -285,6 +303,8 @@ void test_remove_at_leaf_shrinks_bounds() {
     assert((node.bounds() == Box{{0.0, 0.0}, {2.0, 2.0}}));
 }
 
+// Test: test_remove_at_leaf_tracks_lifetimes
+// Verifies leaf removal destroys removed values and preserves remaining lifetimes.
 void test_remove_at_leaf_tracks_lifetimes() {
     using Node = talus::detail::RTreeNode<TrackedValue, double, 4>;
 
@@ -305,6 +325,8 @@ void test_remove_at_leaf_tracks_lifetimes() {
     assert(node.value_at(1).value.name == "third");
 }
 
+// Test: test_remove_at_internal_clears_child_parent
+// Verifies internal removal detaches the removed child and preserves moved-child parent links.
 void test_remove_at_internal_clears_child_parent() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -326,6 +348,8 @@ void test_remove_at_internal_clears_child_parent() {
     assert((parent.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
 }
 
+// Test: test_reset_clears_own_parent_pointer
+// Verifies resetting a node clears its own parent pointer.
 void test_reset_clears_own_parent_pointer() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -346,6 +370,8 @@ void test_reset_clears_own_parent_pointer() {
     assert(child.parent() == nullptr);
 }
 
+// Test: test_leaf_values_span_supports_range_iteration
+// Verifies leaf value spans expose live entries for range iteration and mutation.
 void test_leaf_values_span_supports_range_iteration() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -372,6 +398,8 @@ void test_leaf_values_span_supports_range_iteration() {
     assert(csum == 60);
 }
 
+// Test: test_internal_children_span_supports_range_iteration
+// Verifies internal child spans expose live child entries for range iteration.
 void test_internal_children_span_supports_range_iteration() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -393,6 +421,8 @@ void test_internal_children_span_supports_range_iteration() {
     assert(collected[2] == &c);
 }
 
+// Test: test_pool_allocator_returns_aligned_nodes
+// Verifies pool allocation preserves RTreeNode cache-line alignment.
 void test_pool_allocator_returns_aligned_nodes() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 

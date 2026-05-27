@@ -74,6 +74,8 @@ static_assert(talus::HasBoundsAny<PointWithBounds>);     // has both .x/.y and .
 static_assert(!talus::HasBoundsAny<XYPoint>);            // no .bounds()
 static_assert(!talus::HasBoundsAny<LatLonPoint>);        // no .bounds()
 
+// Test: test_geometry
+// Verifies core geometry primitives, bounding-box operations, and constexpr behavior.
 void test_geometry() {
     using talus::BoundingBox;
     using talus::Point;
@@ -198,6 +200,8 @@ void test_geometry() {
     assert(std::abs(talus::distance(Point<double>{0.0, 0.0}, Point<double>{3.0, 4.0}) - 5.0) < 1e-12);
 }
 
+// Test: test_concepts
+// Verifies automatic coordinate extraction, scalar-aware bounds, and extractor customization.
 void test_concepts() {
     // ── .x/.y extraction ─────────────────────────────────────────────────────
     // default scalar (double)

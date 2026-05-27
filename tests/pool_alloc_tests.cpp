@@ -54,6 +54,8 @@ bool is_aligned(const void* ptr, std::size_t alignment) {
     return reinterpret_cast<std::uintptr_t>(ptr) % alignment == 0;
 }
 
+// Test: test_create_alignment_and_growth
+// Verifies created objects are correctly aligned and capacity grows by blocks.
 void test_create_alignment_and_growth() {
     reset_counters();
 
@@ -79,6 +81,8 @@ void test_create_alignment_and_growth() {
     assert(NodeLike::destroyed == 0);
 }
 
+// Test: test_destroy_reuses_slots
+// Verifies destroyed slots are returned to the free list and reused.
 void test_destroy_reuses_slots() {
     reset_counters();
 
@@ -105,6 +109,8 @@ void test_destroy_reuses_slots() {
     assert(NodeLike::destroyed == 3);
 }
 
+// Test: test_reset_keeps_capacity
+// Verifies reset destroys live objects while retaining allocated block capacity.
 void test_reset_keeps_capacity() {
     reset_counters();
 
@@ -133,6 +139,8 @@ void test_reset_keeps_capacity() {
     assert(NodeLike::constructed == 4);
 }
 
+// Test: test_null_destroy_is_noop
+// Verifies destroying a null pointer leaves the pool unchanged.
 void test_null_destroy_is_noop() {
     reset_counters();
 
@@ -152,12 +160,16 @@ void run_destroy_interior_pointer_case() {
     pool.destroy(interior);
 }
 
+// Test: test_destroy_rejects_interior_pointer
+// Verifies destroy rejects interior pointers instead of treating them as owned slots.
 void test_destroy_rejects_interior_pointer(const char* executable) {
     const std::string command = std::string{"\""} + executable + "\" --destroy-interior-pointer";
     int status = std::system(command.c_str());
     assert(status != 0);
 }
 
+// Test: test_reserve_preallocates_without_construction
+// Verifies reserve allocates raw capacity without constructing objects.
 void test_reserve_preallocates_without_construction() {
     reset_counters();
 
@@ -180,6 +192,8 @@ void test_reserve_preallocates_without_construction() {
     assert(pool.capacity() == 6);
 }
 
+// Test: test_reserve_block_count_does_not_wrap
+// Verifies reserve handles maximum object counts without block-count overflow.
 void test_reserve_block_count_does_not_wrap() {
     talus::detail::PoolAllocator<NodeLike, 2> pool;
 
@@ -194,6 +208,8 @@ void test_reserve_block_count_does_not_wrap() {
     assert(pool.capacity() == 0);
 }
 
+// Test: test_create_uses_reserved_blocks_before_growing
+// Verifies create consumes reserved capacity before allocating another block.
 void test_create_uses_reserved_blocks_before_growing() {
     reset_counters();
 
@@ -223,6 +239,8 @@ void test_create_uses_reserved_blocks_before_growing() {
     assert(NodeLike::destroyed == 5);
 }
 
+// Test: test_reserve_preserves_live_objects
+// Verifies reserve keeps existing live objects valid while adding capacity.
 void test_reserve_preserves_live_objects() {
     reset_counters();
 
@@ -251,6 +269,8 @@ void test_reserve_preserves_live_objects() {
     assert(NodeLike::destroyed == 3);
 }
 
+// Test: test_move_semantics
+// Verifies moving a pool transfers ownership, live objects, and reusable slots.
 void test_move_semantics() {
     reset_counters();
 
@@ -295,6 +315,8 @@ void test_move_semantics() {
     assert(NodeLike::destroyed == 3);
 }
 
+// Test: test_interleaved_free_list_and_sequential
+// Verifies free-list reuse works correctly alongside sequential allocation.
 void test_interleaved_free_list_and_sequential() {
     reset_counters();
 
@@ -335,6 +357,8 @@ void test_interleaved_free_list_and_sequential() {
     assert(NodeLike::destroyed == 7);
 }
 
+// Test: test_reset_refills_all_blocks
+// Verifies reset makes every previously allocated block available for reuse.
 void test_reset_refills_all_blocks() {
     reset_counters();
 
@@ -373,6 +397,8 @@ void test_reset_refills_all_blocks() {
     assert(NodeLike::destroyed == 8);
 }
 
+// Test: test_throwing_constructor_releases_slot
+// Verifies failed construction releases the acquired slot and preserves pool state.
 void test_throwing_constructor_releases_slot() {
     ThrowingNode::throw_on_construct = false;
     ThrowingNode::destroyed = 0;

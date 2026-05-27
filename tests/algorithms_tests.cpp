@@ -23,6 +23,8 @@ struct MoveOnlyValue {
     MoveOnlyValue& operator=(MoveOnlyValue&&) = default;
 };
 
+// Test: test_overlap_enlargement_no_siblings
+// Verifies overlap enlargement is zero when a parent has no other children.
 void test_overlap_enlargement_no_siblings() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -35,6 +37,8 @@ void test_overlap_enlargement_no_siblings() {
     assert(delta == 0.0);
 }
 
+// Test: test_overlap_enlargement_no_new_overlap
+// Verifies expansion that remains disjoint reports no overlap growth.
 void test_overlap_enlargement_no_new_overlap() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -50,6 +54,8 @@ void test_overlap_enlargement_no_new_overlap() {
     assert(delta == 0.0);
 }
 
+// Test: test_overlap_enlargement_creates_new_overlap
+// Verifies expansion into a sibling reports the newly created overlap area.
 void test_overlap_enlargement_creates_new_overlap() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -65,6 +71,8 @@ void test_overlap_enlargement_creates_new_overlap() {
     assert(delta == 0.5);
 }
 
+// Test: test_overlap_enlargement_increases_existing_overlap
+// Verifies expansion of an already-overlapping child reports only overlap delta.
 void test_overlap_enlargement_increases_existing_overlap() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -81,6 +89,8 @@ void test_overlap_enlargement_increases_existing_overlap() {
     assert(delta == 2.0);
 }
 
+// Test: test_overlap_enlargement_sums_multiple_siblings
+// Verifies overlap enlargement accumulates growth across all siblings.
 void test_overlap_enlargement_sums_multiple_siblings() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -101,6 +111,8 @@ void test_overlap_enlargement_sums_multiple_siblings() {
     assert(delta == 1.0);
 }
 
+// Test: test_choose_leaf_selects_minimum_enlargement
+// Verifies ChooseLeaf selects the child with minimum area enlargement.
 void test_choose_leaf_selects_minimum_enlargement() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -119,6 +131,8 @@ void test_choose_leaf_selects_minimum_enlargement() {
     assert(chosen == &right);
 }
 
+// Test: test_choose_leaf_tie_breaks_by_smaller_area
+// Verifies ChooseLeaf breaks equal enlargement ties by smaller current area.
 void test_choose_leaf_tie_breaks_by_smaller_area() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -137,6 +151,8 @@ void test_choose_leaf_tie_breaks_by_smaller_area() {
     assert(chosen == &small);
 }
 
+// Test: test_choose_leaf_tie_breaks_by_fewer_entries
+// Verifies ChooseLeaf breaks equal area ties by fewer child entries.
 void test_choose_leaf_tie_breaks_by_fewer_entries() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -156,6 +172,8 @@ void test_choose_leaf_tie_breaks_by_fewer_entries() {
     assert(chosen == &sparse);
 }
 
+// Test: test_choose_leaf_prefers_overlap_enlargement_for_leaf_children
+// Verifies R*-tree leaf-child selection prefers lower overlap enlargement.
 void test_choose_leaf_prefers_overlap_enlargement_for_leaf_children() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -177,6 +195,8 @@ void test_choose_leaf_prefers_overlap_enlargement_for_leaf_children() {
     assert(chosen == &overlap_preferred_by_rstar);
 }
 
+// Test: test_insert_appends_to_root_leaf
+// Verifies non-splitting insert appends directly to a leaf root.
 void test_insert_appends_to_root_leaf() {
     using Node = talus::detail::RTreeNode<Payload, double, 4>;
 
@@ -193,6 +213,8 @@ void test_insert_appends_to_root_leaf() {
     assert((root.bounds() == Box{{1.0, 2.0}, {1.0, 2.0}}));
 }
 
+// Test: test_insert_routes_to_child_and_refreshes_ancestor_bounds
+// Verifies insert routes through ChooseLeaf and refreshes parent child bounds.
 void test_insert_routes_to_child_and_refreshes_ancestor_bounds() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -217,6 +239,8 @@ void test_insert_routes_to_child_and_refreshes_ancestor_bounds() {
     assert((root.bounds() == Box{{0.0, 0.0}, {13.0, 13.0}}));
 }
 
+// Test: test_insert_reports_overflow_without_splitting
+// Verifies insert can occupy the overflow slot and report split is required.
 void test_insert_reports_overflow_without_splitting() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -235,8 +259,8 @@ void test_insert_reports_overflow_without_splitting() {
     assert(root.count() == Node::entry_capacity);
 }
 
-// Verifies that refresh_ancestor_bounds propagates through more than one level.
-// Tree shape: root(internal) -> mid(internal) -> leaf
+// Test: test_insert_refreshes_bounds_three_levels_deep
+// Verifies insert propagates refreshed bounds through multiple ancestor levels.
 void test_insert_refreshes_bounds_three_levels_deep() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -260,7 +284,8 @@ void test_insert_refreshes_bounds_three_levels_deep() {
     assert((root.child_at(0).bounds == expected));  // root's stored child bounds updated
 }
 
-// choose_leaf on a leaf root returns it immediately without descending.
+// Test: test_choose_leaf_returns_leaf_root_directly
+// Verifies ChooseLeaf returns a leaf root without descending.
 void test_choose_leaf_returns_leaf_root_directly() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -272,10 +297,8 @@ void test_choose_leaf_returns_leaf_root_directly() {
     assert(chosen == &root);
 }
 
-// Three-level tree: root(internal) → branch(internal) → leaf.
-// First level uses area-enlargement (children of root are internal, not leaves).
-// Second level uses overlap-enlargement (children of branch are leaves).
-// Verifies that choose_leaf traverses both levels and lands on the right leaf.
+// Test: test_choose_leaf_descends_through_internal_nodes
+// Verifies ChooseLeaf descends through internal levels to the best target leaf.
 void test_choose_leaf_descends_through_internal_nodes() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -300,12 +323,8 @@ void test_choose_leaf_descends_through_internal_nodes() {
     assert(chosen == &leaf_far);
 }
 
-// Three-level tree where the first-level decision is forced by area-enlargement,
-// not overlap-enlargement. branch_a has a large existing area so inserting a point
-// inside it costs zero area growth; branch_b would require growth. At the root level
-// the children are internal nodes (area-enlargement mode), so branch_a is chosen
-// even though it has higher sibling overlap, which is what an overlap-first strategy
-// would penalise.
+// Test: test_choose_leaf_uses_area_enlargement_at_internal_level
+// Verifies internal-level ChooseLeaf uses area enlargement rather than overlap enlargement.
 void test_choose_leaf_uses_area_enlargement_at_internal_level() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -351,6 +370,8 @@ bool internal_contains_child(
     return false;
 }
 
+// Test: test_split_node_redistributes_leaf_entries
+// Verifies leaf splitting preserves all values and separates clustered bounds.
 void test_split_node_redistributes_leaf_entries() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -384,6 +405,8 @@ void test_split_node_redistributes_leaf_entries() {
         || (sibling.bounds().max.x <= 2.0 && node.bounds().min.x >= 100.0));
 }
 
+// Test: test_split_node_redistributes_internal_entries_and_updates_parents
+// Verifies internal splitting preserves children and updates child parent pointers.
 void test_split_node_redistributes_internal_entries_and_updates_parents() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -433,6 +456,8 @@ void test_split_node_redistributes_internal_entries_and_updates_parents() {
         || (sibling.bounds().max.x <= 2.0 && node.bounds().min.x >= 100.0));
 }
 
+// Test: test_split_node_resets_internal_sibling_for_leaf_split
+// Verifies a leaf split resets and clears a sibling that was previously internal.
 void test_split_node_resets_internal_sibling_for_leaf_split() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -460,6 +485,8 @@ void test_split_node_resets_internal_sibling_for_leaf_split() {
     assert(!leaf_contains_value(sibling, -1));
 }
 
+// Test: test_split_node_resets_leaf_sibling_for_internal_split
+// Verifies an internal split resets and clears a sibling that was previously a leaf.
 void test_split_node_resets_leaf_sibling_for_internal_split() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -496,6 +523,8 @@ void test_split_node_resets_leaf_sibling_for_internal_split() {
     }
 }
 
+// Test: test_split_node_can_choose_y_axis_distribution
+// Verifies SplitNode can choose a vertical distribution when y-axis separation is best.
 void test_split_node_can_choose_y_axis_distribution() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -520,6 +549,8 @@ void test_split_node_can_choose_y_axis_distribution() {
         || (sibling.bounds().max.y <= 2.0 && node.bounds().min.y >= 100.0));
 }
 
+// Test: test_split_node_uses_deterministic_order_for_identical_bounds
+// Verifies identical bounds split deterministically using insertion-order fallback.
 void test_split_node_uses_deterministic_order_for_identical_bounds() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -549,6 +580,8 @@ void test_split_node_uses_deterministic_order_for_identical_bounds() {
     }
 }
 
+// Test: test_split_node_evaluates_multiple_distributions_for_larger_capacity
+// Verifies larger node capacities evaluate multiple valid split distributions.
 void test_split_node_evaluates_multiple_distributions_for_larger_capacity() {
     using Node = talus::detail::RTreeNode<int, double, 6>;
 
@@ -575,7 +608,8 @@ void test_split_node_evaluates_multiple_distributions_for_larger_capacity() {
         || (sibling.bounds().max.x <= 50.0 && node.bounds().min.x >= 100.0));
 }
 
-// The union of both halves' bounding boxes equals the pre-split total bounding box.
+// Test: test_split_node_leaf_bounds_cover_original
+// Verifies leaf split output bounds combine to the original aggregate bounds.
 void test_split_node_leaf_bounds_cover_original() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -601,6 +635,8 @@ void test_split_node_leaf_bounds_cover_original() {
     assert((node.bounds().expand(sibling.bounds()) == original));
 }
 
+// Test: test_split_node_internal_bounds_cover_original
+// Verifies internal split output bounds combine to the original aggregate bounds.
 void test_split_node_internal_bounds_cover_original() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -639,7 +675,8 @@ void test_split_node_internal_bounds_cover_original() {
     assert((node.bounds().expand(sibling.bounds()) == original));
 }
 
-// split_node works when T is move-only (no copy constructor).
+// Test: test_split_node_leaf_move_only_values
+// Verifies leaf splitting works with move-only value types.
 void test_split_node_leaf_move_only_values() {
     using Node = talus::detail::RTreeNode<MoveOnlyValue, double, 4>;
 
