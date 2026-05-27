@@ -432,6 +432,69 @@ void test_split_node_redistributes_internal_entries_and_updates_parents() {
         || (sibling.bounds().max.x <= 2.0 && node.bounds().min.x >= 100.0));
 }
 
+void test_split_node_resets_internal_sibling_for_leaf_split() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node;
+    Node sibling(false);
+    Node stale_child;
+
+    stale_child.append_value(Box{{-10.0, -10.0}, {-9.0, -9.0}}, -1);
+    sibling.append_child(stale_child.bounds(), &stale_child);
+    assert(stale_child.parent() == &sibling);
+
+    node.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 0);
+    node.append_value(Box{{1.0, 0.0}, {1.0, 0.0}}, 1);
+    node.append_value(Box{{2.0, 0.0}, {2.0, 0.0}}, 2);
+    node.append_value(Box{{100.0, 0.0}, {100.0, 0.0}}, 100);
+    node.append_value(Box{{101.0, 0.0}, {101.0, 0.0}}, 101);
+
+    auto result = talus::detail::split_node(node, sibling);
+
+    assert(result.split);
+    assert(sibling.is_leaf());
+    assert(stale_child.parent() == nullptr);
+    assert(node.count() + sibling.count() == Node::entry_capacity);
+    assert(!leaf_contains_value(node, -1));
+    assert(!leaf_contains_value(sibling, -1));
+}
+
+void test_split_node_resets_leaf_sibling_for_internal_split() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node(false);
+    Node sibling;
+    Node child0;
+    Node child1;
+    Node child2;
+    Node child100;
+    Node child101;
+
+    sibling.append_value(Box{{-10.0, -10.0}, {-9.0, -9.0}}, -1);
+
+    child0.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 0);
+    child1.append_value(Box{{1.0, 0.0}, {1.0, 0.0}}, 1);
+    child2.append_value(Box{{2.0, 0.0}, {2.0, 0.0}}, 2);
+    child100.append_value(Box{{100.0, 0.0}, {100.0, 0.0}}, 100);
+    child101.append_value(Box{{101.0, 0.0}, {101.0, 0.0}}, 101);
+
+    node.append_child(child0.bounds(), &child0);
+    node.append_child(child1.bounds(), &child1);
+    node.append_child(child2.bounds(), &child2);
+    node.append_child(child100.bounds(), &child100);
+    node.append_child(child101.bounds(), &child101);
+
+    auto result = talus::detail::split_node(node, sibling);
+
+    assert(result.split);
+    assert(sibling.is_internal());
+    assert(node.count() + sibling.count() == Node::entry_capacity);
+    for (Node* child : {&child0, &child1, &child2, &child100, &child101}) {
+        assert(internal_contains_child(node, child) || internal_contains_child(sibling, child));
+        assert(child->parent() == &node || child->parent() == &sibling);
+    }
+}
+
 void test_split_node_can_choose_y_axis_distribution() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -523,6 +586,8 @@ int main() {
     test_insert_refreshes_bounds_three_levels_deep();
     test_split_node_redistributes_leaf_entries();
     test_split_node_redistributes_internal_entries_and_updates_parents();
+    test_split_node_resets_internal_sibling_for_leaf_split();
+    test_split_node_resets_leaf_sibling_for_internal_split();
     test_split_node_can_choose_y_axis_distribution();
     test_split_node_leaf_bounds_cover_original();
     test_split_node_leaf_move_only_values();
