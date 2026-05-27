@@ -13,6 +13,15 @@ struct Payload {
     std::string label;
 };
 
+struct MoveOnlyValue {
+    int id = 0;
+    explicit MoveOnlyValue(int i) : id(i) {}
+    MoveOnlyValue(const MoveOnlyValue&) = delete;
+    MoveOnlyValue& operator=(const MoveOnlyValue&) = delete;
+    MoveOnlyValue(MoveOnlyValue&&) = default;
+    MoveOnlyValue& operator=(MoveOnlyValue&&) = default;
+};
+
 void test_overlap_enlargement_no_siblings() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
@@ -423,6 +432,52 @@ void test_split_node_redistributes_internal_entries_and_updates_parents() {
         || (sibling.bounds().max.x <= 2.0 && node.bounds().min.x >= 100.0));
 }
 
+// The union of both halves' bounding boxes equals the pre-split total bounding box.
+void test_split_node_leaf_bounds_cover_original() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node;
+    Node sibling;
+
+    const Box b0{{0.0, 5.0}, {1.0, 6.0}};
+    const Box b1{{3.0, 0.0}, {4.0, 1.0}};
+    const Box b2{{7.0, 8.0}, {8.0, 9.0}};
+    const Box b3{{-2.0, -1.0}, {-1.0, 0.0}};
+    const Box b4{{10.0, 10.0}, {11.0, 11.0}};
+    const Box original = b0.expand(b1).expand(b2).expand(b3).expand(b4);
+
+    node.append_value(b0, 0);
+    node.append_value(b1, 1);
+    node.append_value(b2, 2);
+    node.append_value(b3, 3);
+    node.append_value(b4, 4);
+
+    auto result = talus::detail::split_node(node, sibling);
+
+    assert(result.split);
+    assert((node.bounds().expand(sibling.bounds()) == original));
+}
+
+// split_node works when T is move-only (no copy constructor).
+void test_split_node_leaf_move_only_values() {
+    using Node = talus::detail::RTreeNode<MoveOnlyValue, double, 4>;
+
+    Node node;
+    Node sibling;
+
+    for (int i = 0; i < static_cast<int>(Node::entry_capacity); ++i) {
+        node.append_value(
+            Box{{static_cast<double>(i), 0.0}, {static_cast<double>(i + 1), 1.0}},
+            MoveOnlyValue{i});
+    }
+
+    assert(node.has_overflow());
+    auto result = talus::detail::split_node(node, sibling);
+
+    assert(result.split);
+    assert(node.count() + sibling.count() == Node::entry_capacity);
+}
+
 } // namespace
 
 int main() {
@@ -444,4 +499,6 @@ int main() {
     test_insert_refreshes_bounds_three_levels_deep();
     test_split_node_redistributes_leaf_entries();
     test_split_node_redistributes_internal_entries_and_updates_parents();
+    test_split_node_leaf_bounds_cover_original();
+    test_split_node_leaf_move_only_values();
 }
