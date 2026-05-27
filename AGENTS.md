@@ -73,5 +73,6 @@ Nodes are `alignas(64)` structs (one cache line). The union between `children` (
 - Summarize changed behavior and verification steps when finishing work.
 - Update PLAN.md with any changes.
 - If tests cannot be run because none exist, say so and describe the manual check used instead.
+- All new test functions should include a short header block that names the test and describes the behavior or invariant being verified in enough detail for future maintainers to understand the intent.
 - When Codex makes code changes and is asked to create a git commit, include `Co-authored-by: Codex <codex@openai.com>` in the commit message.
 - Do not add the Codex co-author trailer for commits that only contain user-authored work or by other AIs.
