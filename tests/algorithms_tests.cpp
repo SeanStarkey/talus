@@ -432,6 +432,30 @@ void test_split_node_redistributes_internal_entries_and_updates_parents() {
         || (sibling.bounds().max.x <= 2.0 && node.bounds().min.x >= 100.0));
 }
 
+void test_split_node_can_choose_y_axis_distribution() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node;
+    Node sibling;
+
+    node.append_value(Box{{0.0, 0.0}, {1.0, 0.0}}, 0);
+    node.append_value(Box{{0.0, 1.0}, {1.0, 1.0}}, 1);
+    node.append_value(Box{{0.0, 2.0}, {1.0, 2.0}}, 2);
+    node.append_value(Box{{0.0, 100.0}, {1.0, 100.0}}, 100);
+    node.append_value(Box{{0.0, 101.0}, {1.0, 101.0}}, 101);
+
+    auto result = talus::detail::split_node(node, sibling);
+
+    assert(result.split);
+    assert(!node.has_overflow());
+    assert(!sibling.has_overflow());
+    assert(!node.underfull());
+    assert(!sibling.underfull());
+    assert(node.count() + sibling.count() == Node::entry_capacity);
+    assert((node.bounds().max.y <= 2.0 && sibling.bounds().min.y >= 100.0)
+        || (sibling.bounds().max.y <= 2.0 && node.bounds().min.y >= 100.0));
+}
+
 // The union of both halves' bounding boxes equals the pre-split total bounding box.
 void test_split_node_leaf_bounds_cover_original() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
@@ -499,6 +523,7 @@ int main() {
     test_insert_refreshes_bounds_three_levels_deep();
     test_split_node_redistributes_leaf_entries();
     test_split_node_redistributes_internal_entries_and_updates_parents();
+    test_split_node_can_choose_y_axis_distribution();
     test_split_node_leaf_bounds_cover_original();
     test_split_node_leaf_move_only_values();
 }
