@@ -2,6 +2,7 @@
 #include <talus/detail/node.hpp>
 
 #include <cassert>
+#include <cstddef>
 #include <string>
 
 namespace {
@@ -519,6 +520,35 @@ void test_split_node_can_choose_y_axis_distribution() {
         || (sibling.bounds().max.y <= 2.0 && node.bounds().min.y >= 100.0));
 }
 
+void test_split_node_uses_deterministic_order_for_identical_bounds() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node first;
+    Node first_sibling;
+    Node second;
+    Node second_sibling;
+    const Box same_bounds{{0.0, 0.0}, {1.0, 1.0}};
+
+    for (int value : {0, 1, 2, 3, 4}) {
+        first.append_value(same_bounds, value);
+        second.append_value(same_bounds, value);
+    }
+
+    auto first_result = talus::detail::split_node(first, first_sibling);
+    auto second_result = talus::detail::split_node(second, second_sibling);
+
+    assert(first_result.split);
+    assert(second_result.split);
+    assert(first.count() == second.count());
+    assert(first_sibling.count() == second_sibling.count());
+    for (std::size_t i = 0; i < first.count(); ++i) {
+        assert(first.value_at(i).value == second.value_at(i).value);
+    }
+    for (std::size_t i = 0; i < first_sibling.count(); ++i) {
+        assert(first_sibling.value_at(i).value == second_sibling.value_at(i).value);
+    }
+}
+
 // The union of both halves' bounding boxes equals the pre-split total bounding box.
 void test_split_node_leaf_bounds_cover_original() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
@@ -589,6 +619,7 @@ int main() {
     test_split_node_resets_internal_sibling_for_leaf_split();
     test_split_node_resets_leaf_sibling_for_internal_split();
     test_split_node_can_choose_y_axis_distribution();
+    test_split_node_uses_deterministic_order_for_identical_bounds();
     test_split_node_leaf_bounds_cover_original();
     test_split_node_leaf_move_only_values();
 }
