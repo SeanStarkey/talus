@@ -601,6 +601,44 @@ void test_split_node_leaf_bounds_cover_original() {
     assert((node.bounds().expand(sibling.bounds()) == original));
 }
 
+void test_split_node_internal_bounds_cover_original() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node node(false);
+    Node sibling;
+    Node child0;
+    Node child1;
+    Node child2;
+    Node child3;
+    Node child4;
+
+    const Box b0{{0.0, 5.0}, {1.0, 6.0}};
+    const Box b1{{3.0, 0.0}, {4.0, 1.0}};
+    const Box b2{{7.0, 8.0}, {8.0, 9.0}};
+    const Box b3{{-2.0, -1.0}, {-1.0, 0.0}};
+    const Box b4{{10.0, 10.0}, {11.0, 11.0}};
+    const Box original = b0.expand(b1).expand(b2).expand(b3).expand(b4);
+
+    child0.append_value(b0, 0);
+    child1.append_value(b1, 1);
+    child2.append_value(b2, 2);
+    child3.append_value(b3, 3);
+    child4.append_value(b4, 4);
+
+    node.append_child(child0.bounds(), &child0);
+    node.append_child(child1.bounds(), &child1);
+    node.append_child(child2.bounds(), &child2);
+    node.append_child(child3.bounds(), &child3);
+    node.append_child(child4.bounds(), &child4);
+
+    auto result = talus::detail::split_node(node, sibling);
+
+    assert(result.split);
+    assert(node.is_internal());
+    assert(sibling.is_internal());
+    assert((node.bounds().expand(sibling.bounds()) == original));
+}
+
 // split_node works when T is move-only (no copy constructor).
 void test_split_node_leaf_move_only_values() {
     using Node = talus::detail::RTreeNode<MoveOnlyValue, double, 4>;
@@ -648,5 +686,6 @@ int main() {
     test_split_node_uses_deterministic_order_for_identical_bounds();
     test_split_node_evaluates_multiple_distributions_for_larger_capacity();
     test_split_node_leaf_bounds_cover_original();
+    test_split_node_internal_bounds_cover_original();
     test_split_node_leaf_move_only_values();
 }
