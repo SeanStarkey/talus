@@ -18,9 +18,9 @@ the configured build tree's generated CMake/build-system files while refusing
 to operate on in-source builds.
 
 The R-tree implementation has started with storage primitives and the first
-algorithm slice. Node layout, overlap-aware ChooseLeaf, non-splitting Insert, and the low-level
-SplitNode primitive are in place; higher-level tree adjustment and split
-propagation are next.
+algorithm slice. Node layout, overlap-aware ChooseLeaf, non-splitting Insert,
+the low-level SplitNode primitive, and AdjustTree split propagation are in
+place; Search is next.
 
 The following scaffolding directories currently contain placeholder CMake files:
 
@@ -77,7 +77,7 @@ and test in this order:
    - Completed: when choosing among leaf children, minimize overlap enlargement first, then area enlargement and area
 2. Completed: Insert without split handling
 3. Completed: SplitNode
-4. AdjustTree
+4. Completed: AdjustTree
 5. Search
 
 The R*-tree overlap-aware ChooseLeaf behavior is covered by focused tests. Do
@@ -126,7 +126,7 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Continue `include/talus/detail/algorithms.hpp` with AdjustTree and split-aware
-Insert propagation. Reuse the completed low-level SplitNode primitive to update
-parent bounds, attach split siblings, and create a new root when the old root
-splits. Keep `rtree.hpp` until internal insertion and search are correct.
+Continue `include/talus/detail/algorithms.hpp` with Search. Use the adjusted
+tree produced by split-aware insertion as the target shape for deterministic
+search fixtures, and keep `rtree.hpp` until internal insertion and search are
+correct.

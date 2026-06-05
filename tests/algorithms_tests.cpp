@@ -1,8 +1,10 @@
 #include <talus/detail/algorithms.hpp>
 #include <talus/detail/node.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <vector>
 #include <string>
 
 namespace {
@@ -696,6 +698,188 @@ void test_split_node_leaf_move_only_values() {
     assert(node.count() + sibling.count() == Node::entry_capacity);
 }
 
+void collect_leaf_values(
+    const talus::detail::RTreeNode<int, double, 4>& node,
+    std::vector<int>& values) {
+    if (node.is_leaf()) {
+        for (const auto& entry : node.values()) {
+            values.push_back(entry.value);
+        }
+        return;
+    }
+
+    for (const auto& entry : node.children()) {
+        collect_leaf_values(*entry.child, values);
+    }
+}
+
+void assert_internal_bounds_match_children(const talus::detail::RTreeNode<int, double, 4>& node) {
+    if (node.is_leaf()) {
+        return;
+    }
+
+    Box combined = node.child_at(0).bounds;
+    for (std::size_t i = 0; i < node.count(); ++i) {
+        const auto& entry = node.child_at(i);
+        assert(entry.child != nullptr);
+        assert(entry.child->parent() == &node);
+        assert((entry.bounds == entry.child->bounds()));
+        if (i > 0) {
+            combined = combined.expand(entry.bounds);
+        }
+        assert_internal_bounds_match_children(*entry.child);
+    }
+    assert((node.bounds() == combined));
+}
+
+// Test: test_adjust_tree_grows_leaf_root_in_place
+// Verifies AdjustTree converts an overflowing leaf root into a stable internal root.
+void test_adjust_tree_grows_leaf_root_in_place() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node, 8> pool;
+    Node root;
+
+    for (int value : {0, 1, 2, 100, 101}) {
+        root.append_value(
+            Box{{static_cast<double>(value), 0.0}, {static_cast<double>(value), 0.0}},
+            value);
+    }
+
+    auto result = talus::detail::adjust_tree(root, &root, pool);
+
+    assert(result.adjusted);
+    assert(result.root == &root);
+    assert(result.split_count == 1);
+    assert(result.grew_height);
+    assert(root.is_internal());
+    assert(root.parent() == nullptr);
+    assert(root.count() == 2);
+    assert(!root.has_overflow());
+    assert_internal_bounds_match_children(root);
+
+    std::vector<int> values;
+    collect_leaf_values(root, values);
+    assert(values.size() == Node::entry_capacity);
+    for (int value : {0, 1, 2, 100, 101}) {
+        assert(std::find(values.begin(), values.end(), value) != values.end());
+    }
+}
+
+// Test: test_adjust_tree_attaches_split_sibling_to_parent
+// Verifies AdjustTree updates an overflowing child's parent bounds and sibling link.
+void test_adjust_tree_attaches_split_sibling_to_parent() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node leaf;
+    talus::detail::PoolAllocator<Node, 8> pool;
+    Node root(false);
+
+    for (int value : {0, 1, 2, 100, 101}) {
+        leaf.append_value(
+            Box{{static_cast<double>(value), 0.0}, {static_cast<double>(value), 0.0}},
+            value);
+    }
+    root.append_child(leaf.bounds(), &leaf);
+
+    auto result = talus::detail::adjust_tree(root, &leaf, pool);
+
+    assert(result.adjusted);
+    assert(result.split_count == 1);
+    assert(!result.grew_height);
+    assert(root.is_internal());
+    assert(root.count() == 2);
+    assert(leaf.parent() == &root);
+    assert(!leaf.has_overflow());
+    assert_internal_bounds_match_children(root);
+
+    std::vector<int> values;
+    collect_leaf_values(root, values);
+    assert(values.size() == Node::entry_capacity);
+    for (int value : {0, 1, 2, 100, 101}) {
+        assert(std::find(values.begin(), values.end(), value) != values.end());
+    }
+}
+
+// Test: test_adjust_tree_propagates_parent_split_to_new_root
+// Verifies AdjustTree cascades a child split through a full parent and grows the root.
+void test_adjust_tree_propagates_parent_split_to_new_root() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node overflowing_leaf;
+    Node filler0;
+    Node filler1;
+    Node filler2;
+    talus::detail::PoolAllocator<Node, 16> pool;
+    Node root(false);
+
+    for (int value : {0, 1, 2, 100, 101}) {
+        overflowing_leaf.append_value(
+            Box{{static_cast<double>(value), 0.0}, {static_cast<double>(value), 0.0}},
+            value);
+    }
+
+    filler0.append_value(Box{{200.0, 0.0}, {200.0, 0.0}}, 200);
+    filler1.append_value(Box{{300.0, 0.0}, {300.0, 0.0}}, 300);
+    filler2.append_value(Box{{400.0, 0.0}, {400.0, 0.0}}, 400);
+
+    root.append_child(overflowing_leaf.bounds(), &overflowing_leaf);
+    root.append_child(filler0.bounds(), &filler0);
+    root.append_child(filler1.bounds(), &filler1);
+    root.append_child(filler2.bounds(), &filler2);
+
+    auto result = talus::detail::adjust_tree(root, &overflowing_leaf, pool);
+
+    assert(result.adjusted);
+    assert(result.split_count == 2);
+    assert(result.grew_height);
+    assert(root.is_internal());
+    assert(root.parent() == nullptr);
+    assert(root.count() == 2);
+    assert(!root.has_overflow());
+    assert_internal_bounds_match_children(root);
+
+    std::vector<int> values;
+    collect_leaf_values(root, values);
+    for (int value : {0, 1, 2, 100, 101, 200, 300, 400}) {
+        assert(std::find(values.begin(), values.end(), value) != values.end());
+    }
+}
+
+// Test: test_insert_with_split_keeps_tree_valid_after_root_split
+// Verifies split-aware insert appends the entry and fully adjusts an overflowing root.
+void test_insert_with_split_keeps_tree_valid_after_root_split() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node, 8> pool;
+    Node root;
+
+    for (int value : {0, 1, 2, 3}) {
+        root.append_value(
+            Box{{static_cast<double>(value), 0.0}, {static_cast<double>(value), 0.0}},
+            value);
+    }
+
+    auto result = talus::detail::insert_with_split(
+        root,
+        pool,
+        Box{{4.0, 0.0}, {4.0, 0.0}},
+        4);
+
+    assert(result.inserted);
+    assert(result.root == &root);
+    assert(result.split_count == 1);
+    assert(result.grew_height);
+    assert(root.is_internal());
+    assert_internal_bounds_match_children(root);
+
+    std::vector<int> values;
+    collect_leaf_values(root, values);
+    for (int value : {0, 1, 2, 3, 4}) {
+        assert(std::find(values.begin(), values.end(), value) != values.end());
+    }
+}
+
 } // namespace
 
 int main() {
@@ -725,4 +909,8 @@ int main() {
     test_split_node_leaf_bounds_cover_original();
     test_split_node_internal_bounds_cover_original();
     test_split_node_leaf_move_only_values();
+    test_adjust_tree_grows_leaf_root_in_place();
+    test_adjust_tree_attaches_split_sibling_to_parent();
+    test_adjust_tree_propagates_parent_split_to_new_root();
+    test_insert_with_split_keeps_tree_valid_after_root_split();
 }

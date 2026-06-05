@@ -16,6 +16,7 @@
 
 #include "assert.hpp"
 #include "node.hpp"
+#include "pool_alloc.hpp"
 #include "../geometry.hpp"
 
 namespace talus::detail {
@@ -77,6 +78,38 @@ struct RTreeInsertResult {
     [[nodiscard]] constexpr bool needs_split() const noexcept {
         return overflow != nullptr;
     }
+};
+
+/// @brief Result returned after split propagation adjusts the tree.
+template<typename Node>
+struct RTreeAdjustResult {
+    /// Stable root object after adjustment.
+    Node* root = nullptr;
+
+    /// Number of node splits performed while walking back to the root.
+    std::size_t split_count = 0;
+
+    /// True when a root split created a new internal root level.
+    bool grew_height = false;
+
+    /// True when all required bound refresh and split propagation completed.
+    bool adjusted = false;
+};
+
+/// @brief Result returned from insertion with split propagation enabled.
+template<typename Node>
+struct RTreeAdjustedInsertResult {
+    /// Stable root object after insertion.
+    Node* root = nullptr;
+
+    /// True when the entry was appended.
+    bool inserted = false;
+
+    /// Number of node splits performed while adjusting the tree.
+    std::size_t split_count = 0;
+
+    /// True when a root split created a new internal root level.
+    bool grew_height = false;
 };
 
 /// @brief Returns the index of `child` in `parent`.
@@ -420,6 +453,117 @@ RTreeSplitResult<RTreeNode<T, Scalar, MaxChildren>> split_node(
     return {&node, &sibling, true};
 }
 
+namespace adjust_detail {
+
+template<typename T, typename Scalar, std::size_t MaxChildren>
+void move_entries(
+    RTreeNode<T, Scalar, MaxChildren>& source,
+    RTreeNode<T, Scalar, MaxChildren>& destination) {
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+
+    TALUS_ASSERT(source.count() <= node_type::max_children);
+    TALUS_ASSERT(&source != &destination);
+
+    if (source.is_leaf()) {
+        using entry_type = typename node_type::value_entry_type;
+        static_assert(node_type::can_relocate_value_entries,
+            "root split propagation requires move-constructible value entries");
+
+        std::vector<entry_type> entries;
+        entries.reserve(source.count());
+        for (std::size_t i = 0; i < source.count(); ++i) {
+            entries.emplace_back(std::move(source.value_at(i)));
+        }
+
+        source.clear();
+        destination.reset_as_leaf();
+        for (auto& entry : entries) {
+            destination.append_value(entry.bounds, std::move(entry.value));
+        }
+    } else {
+        using entry_type = typename node_type::child_entry_type;
+
+        std::vector<entry_type> entries;
+        entries.reserve(source.count());
+        for (std::size_t i = 0; i < source.count(); ++i) {
+            entries.emplace_back(source.child_at(i));
+        }
+
+        source.clear();
+        destination.reset_as_internal();
+        for (auto& entry : entries) {
+            destination.append_child(entry.bounds, entry.child);
+        }
+    }
+}
+
+template<typename T, typename Scalar, std::size_t MaxChildren, std::size_t BlockSize>
+void grow_root(
+    RTreeNode<T, Scalar, MaxChildren>& root,
+    RTreeNode<T, Scalar, MaxChildren>& right,
+    PoolAllocator<RTreeNode<T, Scalar, MaxChildren>, BlockSize>& pool) {
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+
+    node_type* left = pool.create(root.is_leaf());
+    move_entries(root, *left);
+
+    root.reset_as_internal();
+    root.append_child(left->bounds(), left);
+    root.append_child(right.bounds(), &right);
+    root.set_parent(nullptr);
+}
+
+} // namespace adjust_detail
+
+/// @brief Propagates an overflowing node split upward and refreshes ancestor bounds.
+///
+/// `pool` supplies any split siblings and the promoted left child required when
+/// the stable root object itself must become a new internal root.
+template<typename T, typename Scalar, std::size_t MaxChildren, std::size_t BlockSize>
+RTreeAdjustResult<RTreeNode<T, Scalar, MaxChildren>> adjust_tree(
+    RTreeNode<T, Scalar, MaxChildren>& root,
+    RTreeNode<T, Scalar, MaxChildren>* overflow,
+    PoolAllocator<RTreeNode<T, Scalar, MaxChildren>, BlockSize>& pool) {
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+
+    if (overflow == nullptr) {
+        root.recompute_bounds();
+        return {&root, 0, false, true};
+    }
+
+    TALUS_ASSERT(overflow->has_overflow());
+
+    RTreeAdjustResult<node_type> result{&root, 0, false, false};
+    node_type* node = overflow;
+
+    while (node != nullptr && node->has_overflow()) {
+        node_type* sibling = pool.create(node->is_leaf());
+        split_node(*node, *sibling);
+        ++result.split_count;
+
+        node_type* parent = node->parent();
+        if (parent == nullptr) {
+            TALUS_ASSERT(node == &root);
+            adjust_detail::grow_root(root, *sibling, pool);
+            result.grew_height = true;
+            result.adjusted = true;
+            return result;
+        }
+
+        const std::size_t node_index = find_child_index(*parent, node);
+        parent->update_bounds(node_index, node->bounds());
+        parent->append_child(sibling->bounds(), sibling);
+        node = parent;
+    }
+
+    if (node != nullptr) {
+        refresh_ancestor_bounds(*node);
+    }
+
+    result.adjusted = true;
+    return result;
+}
+
 /// @brief Inserts a value into the chosen leaf without performing splits.
 ///
 /// The target leaf may use its overflow slot. When this happens, the result's
@@ -445,6 +589,33 @@ RTreeInsertResult<RTreeNode<T, Scalar, MaxChildren>> insert(
     refresh_ancestor_bounds(*leaf);
 
     return {leaf, leaf->has_overflow() ? leaf : nullptr, true};
+}
+
+/// @brief Inserts a value and propagates any required splits to the root.
+template<typename T, typename Scalar, std::size_t MaxChildren, std::size_t BlockSize, typename U>
+RTreeAdjustedInsertResult<RTreeNode<T, Scalar, MaxChildren>> insert_with_split(
+    RTreeNode<T, Scalar, MaxChildren>& root,
+    PoolAllocator<RTreeNode<T, Scalar, MaxChildren>, BlockSize>& pool,
+    BoundingBox<Scalar> entry_bounds,
+    U&& value) {
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+
+    auto insert_result = insert(root, entry_bounds, std::forward<U>(value));
+    if (!insert_result.inserted) {
+        return {&root, false, 0, false};
+    }
+
+    if (!insert_result.needs_split()) {
+        return {&root, true, 0, false};
+    }
+
+    auto adjust_result = adjust_tree(root, insert_result.overflow, pool);
+    return {
+        adjust_result.root,
+        true,
+        adjust_result.split_count,
+        adjust_result.grew_height
+    };
 }
 
 } // namespace talus::detail
