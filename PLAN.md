@@ -24,8 +24,11 @@ in place.
 
 The following scaffolding directories currently contain placeholder CMake files:
 
-- `examples/`
 - `benchmarks/`
+
+`examples/` now includes `talus_rstar_driver`, a small executable that exercises
+the implemented R*-tree core through the internal node, pool, insert-with-split,
+and search APIs while the public `SpatialIndex` wrapper is still pending.
 
 The concept layer now supports scalar-aware bounding-box extraction and gives `.bounds()` precedence over point fields when a type satisfies both.
 
@@ -118,7 +121,8 @@ After Insert and Search are solid, add to `algorithms.hpp`:
 
 After correctness is established:
 
-- Add examples for `.x/.y` point structs.
+- Completed: add an R*-tree core driver for `.x/.y` point structs using the
+  implemented insertion, split propagation, and rectangular search algorithms.
 - Add examples for `.lat/.lon` structs.
 - Add examples for bounded geometries.
 - Add examples for custom coordinate extractors.
