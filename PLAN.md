@@ -13,6 +13,10 @@ work. The implemented project surface is:
 - `include/talus/detail/algorithms.hpp`
 - `CMakeLists.txt`
 
+The top-level CMake project now provides a `clean-cmake` target that removes
+the configured build tree's generated CMake/build-system files while refusing
+to operate on in-source builds.
+
 The R-tree implementation has started with storage primitives and the first
 algorithm slice. Node layout, overlap-aware ChooseLeaf, non-splitting Insert, and the low-level
 SplitNode primitive are in place; higher-level tree adjustment and split

@@ -15,6 +15,19 @@ option(TALUS_BUILD_TESTS      "Build Talus tests"      ${_talus_top_level})
 option(TALUS_BUILD_BENCHMARKS "Build Talus benchmarks" OFF)
 option(TALUS_BUILD_EXAMPLES   "Build Talus examples"   OFF)
 
+# ── Generated file cleanup ───────────────────────────────────────────────────
+
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/clean-cmake.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/clean-cmake.cmake"
+    @ONLY
+)
+
+add_custom_target(clean-cmake
+    COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/clean-cmake.cmake"
+    COMMENT "Removing generated CMake files from ${CMAKE_CURRENT_BINARY_DIR}"
+)
+
 # ── Library target (header-only interface) ───────────────────────────────────
 
 add_library(talus INTERFACE)
