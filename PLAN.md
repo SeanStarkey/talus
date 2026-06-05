@@ -88,14 +88,7 @@ not start NearestNeighbor, Delete, or STR bulk load until Insert and Search
 correctness is solid. Each step should have focused tests before moving to the
 next one.
 
-### 5. Add the Brute-force Oracle
-
-- Add `tests/brute_force.hpp`.
-- Compare R-tree search results against brute force for deterministic fixtures.
-- Add randomized search tests after deterministic tests are stable.
-- Scale randomized tests gradually before attempting the documented large stress tests.
-
-### 6. Expose the Public R-tree API
+### 5. Expose the Public R-tree API
 
 `include/talus/rtree.hpp` is a thin wrapper around the algorithms. It owns the
 root node and pool, and exposes the user-facing `SpatialIndex<T, Scalar,
@@ -107,6 +100,18 @@ Start with:
   - `empty`
   - `clear`
   - rectangular `search`
+
+Keep this phase intentionally narrow. Do not expand the public wrapper to
+nearest neighbor, delete, radius search, or bulk load until the minimal
+insert/search API is covered by oracle tests.
+
+### 6. Add the Brute-force Oracle
+
+- Add `tests/brute_force.hpp`.
+- Compare public `SpatialIndex` rectangular search results against brute force
+  for deterministic fixtures.
+- Add randomized public API search tests after deterministic tests are stable.
+- Scale randomized tests gradually before attempting the documented large stress tests.
 
 ### 7. Implement Remaining R*-tree Algorithms
 
@@ -130,7 +135,8 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Continue with the brute-force oracle in `tests/brute_force.hpp`. Compare
-deterministic R-tree search fixtures against the oracle before adding randomized
-search coverage, and keep `rtree.hpp` until internal insertion and search are
-correct.
+Continue with the minimal public R-tree wrapper in `include/talus/rtree.hpp`.
+Expose `SpatialIndex<T, Scalar, MaxChildren>` with `insert`, `size`, `empty`,
+`clear`, and rectangular `search`, then add `tests/brute_force.hpp` so
+deterministic and randomized search tests can compare the public API against the
+oracle.
