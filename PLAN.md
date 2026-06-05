@@ -19,8 +19,8 @@ to operate on in-source builds.
 
 The R-tree implementation has started with storage primitives and the first
 algorithm slice. Node layout, overlap-aware ChooseLeaf, non-splitting Insert,
-the low-level SplitNode primitive, and AdjustTree split propagation are in
-place; Search is next.
+the low-level SplitNode primitive, AdjustTree split propagation, and Search are
+in place.
 
 The following scaffolding directories currently contain placeholder CMake files:
 
@@ -78,7 +78,7 @@ and test in this order:
 2. Completed: Insert without split handling
 3. Completed: SplitNode
 4. Completed: AdjustTree
-5. Search
+5. Completed: Search
 
 The R*-tree overlap-aware ChooseLeaf behavior is covered by focused tests. Do
 not start NearestNeighbor, Delete, or STR bulk load until Insert and Search
@@ -126,7 +126,7 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Continue `include/talus/detail/algorithms.hpp` with Search. Use the adjusted
-tree produced by split-aware insertion as the target shape for deterministic
-search fixtures, and keep `rtree.hpp` until internal insertion and search are
+Continue with the brute-force oracle in `tests/brute_force.hpp`. Compare
+deterministic R-tree search fixtures against the oracle before adding randomized
+search coverage, and keep `rtree.hpp` until internal insertion and search are
 correct.

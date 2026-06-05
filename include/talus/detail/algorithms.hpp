@@ -618,4 +618,52 @@ RTreeAdjustedInsertResult<RTreeNode<T, Scalar, MaxChildren>> insert_with_split(
     };
 }
 
+namespace search_detail {
+
+template<typename T, typename Scalar, std::size_t MaxChildren, typename Visitor>
+std::size_t search_impl(
+    const RTreeNode<T, Scalar, MaxChildren>& node,
+    BoundingBox<Scalar> query_bounds,
+    Visitor& visitor) {
+    if (node.empty() || !node.bounds().intersects(query_bounds)) {
+        return 0;
+    }
+
+    std::size_t matches = 0;
+    if (node.is_leaf()) {
+        for (const auto& entry : node.values()) {
+            if (entry.bounds.intersects(query_bounds)) {
+                visitor(entry.value);
+                ++matches;
+            }
+        }
+        return matches;
+    }
+
+    for (const auto& entry : node.children()) {
+        TALUS_ASSERT(entry.child != nullptr);
+        if (entry.bounds.intersects(query_bounds)) {
+            matches += search_impl(*entry.child, query_bounds, visitor);
+        }
+    }
+    return matches;
+}
+
+} // namespace search_detail
+
+/// @brief Visits each value whose stored bounds intersect `query_bounds`.
+///
+/// Returns the number of matching leaf entries. Traversal prunes any subtree
+/// whose stored bounds do not intersect the query rectangle. Boundary-touching
+/// boxes are considered matches, matching `BoundingBox::intersects`.
+template<typename T, typename Scalar, std::size_t MaxChildren, typename Visitor>
+std::size_t search(
+    const RTreeNode<T, Scalar, MaxChildren>& root,
+    BoundingBox<Scalar> query_bounds,
+    Visitor&& visitor) {
+    TALUS_ASSERT(query_bounds.is_valid());
+
+    return search_detail::search_impl(root, query_bounds, visitor);
+}
+
 } // namespace talus::detail

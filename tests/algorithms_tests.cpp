@@ -880,6 +880,115 @@ void test_insert_with_split_keeps_tree_valid_after_root_split() {
     }
 }
 
+// Test: test_search_empty_root_returns_no_matches
+// Verifies Search handles an empty tree without invoking the result visitor.
+void test_search_empty_root_returns_no_matches() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root;
+    std::vector<int> matches;
+
+    const std::size_t count = talus::detail::search(
+        root,
+        Box{{0.0, 0.0}, {10.0, 10.0}},
+        [&](const int& value) {
+            matches.push_back(value);
+        });
+
+    assert(count == 0);
+    assert(matches.empty());
+}
+
+// Test: test_search_leaf_reports_intersecting_values
+// Verifies Search visits only leaf entries whose bounds intersect the query,
+// including entries that touch the query boundary.
+void test_search_leaf_reports_intersecting_values() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root;
+    root.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 0);
+    root.append_value(Box{{2.0, 2.0}, {3.0, 3.0}}, 1);
+    root.append_value(Box{{4.0, 4.0}, {5.0, 5.0}}, 2);
+
+    std::vector<int> matches;
+    const std::size_t count = talus::detail::search(
+        root,
+        Box{{1.0, 1.0}, {4.0, 4.0}},
+        [&](const int& value) {
+            matches.push_back(value);
+        });
+
+    std::sort(matches.begin(), matches.end());
+    assert(count == 3);
+    assert((matches == std::vector<int>{0, 1, 2}));
+}
+
+// Test: test_search_internal_prunes_disjoint_children
+// Verifies Search descends only through child bounds that intersect the query.
+void test_search_internal_prunes_disjoint_children() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root(false);
+    Node left;
+    Node right;
+
+    left.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 0);
+    left.append_value(Box{{2.0, 2.0}, {3.0, 3.0}}, 1);
+    right.append_value(Box{{100.0, 100.0}, {101.0, 101.0}}, 2);
+
+    root.append_child(left.bounds(), &left);
+    root.append_child(right.bounds(), &right);
+
+    std::vector<int> matches;
+    const std::size_t count = talus::detail::search(
+        root,
+        Box{{0.5, 0.5}, {2.5, 2.5}},
+        [&](const int& value) {
+            matches.push_back(value);
+        });
+
+    std::sort(matches.begin(), matches.end());
+    assert(count == 2);
+    assert((matches == std::vector<int>{0, 1}));
+}
+
+// Test: test_search_split_insert_tree_matches_deterministic_query
+// Verifies Search finds the expected values in a tree produced by split-aware
+// insertion, including after root growth and child bound adjustment.
+void test_search_split_insert_tree_matches_deterministic_query() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node, 16> pool;
+    Node root;
+
+    for (int value : {0, 1, 2, 3, 100, 101, 102, 103, 200}) {
+        auto result = talus::detail::insert_with_split(
+            root,
+            pool,
+            Box{
+                {static_cast<double>(value), static_cast<double>(value)},
+                {static_cast<double>(value), static_cast<double>(value)}
+            },
+            value);
+        assert(result.inserted);
+    }
+
+    assert(root.is_internal());
+    assert_internal_bounds_match_children(root);
+
+    std::vector<int> matches;
+    const std::size_t count = talus::detail::search(
+        root,
+        Box{{99.5, 99.5}, {102.5, 102.5}},
+        [&](const int& value) {
+            matches.push_back(value);
+        });
+
+    std::sort(matches.begin(), matches.end());
+    assert(count == 3);
+    assert((matches == std::vector<int>{100, 101, 102}));
+}
+
 } // namespace
 
 int main() {
@@ -913,4 +1022,8 @@ int main() {
     test_adjust_tree_attaches_split_sibling_to_parent();
     test_adjust_tree_propagates_parent_split_to_new_root();
     test_insert_with_split_keeps_tree_valid_after_root_split();
+    test_search_empty_root_returns_no_matches();
+    test_search_leaf_reports_intersecting_values();
+    test_search_internal_prunes_disjoint_children();
+    test_search_split_insert_tree_matches_deterministic_query();
 }
