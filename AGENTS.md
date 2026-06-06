@@ -27,7 +27,7 @@ cmake -B build -DTALUS_WARNINGS_AS_ERRORS=ON
 cmake -B build-asan -DTALUS_ENABLE_SANITIZERS=ON
 ```
 
-Talus's own targets (tests/examples/benchmarks) build with `-Wall -Wextra -Wpedantic` by default via the internal `talus_dev_options` interface target; these flags never reach the public `talus` interface. `.github/workflows/ci.yml` builds and tests with GCC and Clang under `-Werror` plus a sanitizer job. Keep the tree warning-clean under `-Werror`.
+Talus's own targets (tests/examples/benchmarks) build with `-Wall -Wextra -Wpedantic` by default via the internal `talus_dev_options` interface target; these flags never reach the public `talus` interface. `.github/workflows/ci.yml` builds and tests with GCC and Clang under `-Werror`, plus an ASan+UBSan job and a Valgrind (Memcheck) job. Keep the tree warning-clean under `-Werror`. The Valgrind job uses a plain non-sanitized build (Valgrind and ASan are incompatible) and exists mainly to catch uninitialized-memory reads, which ASan does not.
 
 No external dependencies are needed to build the library itself. Tests are plain executables with no external framework — they check invariants with a local `TALUS_CHECK` macro (`tests/test_check.hpp`) that always runs, so it is not stripped by `NDEBUG` and the suite stays meaningful in `Release` builds — and `benchmarks/` is an empty placeholder, so nothing is fetched today. If a test framework (e.g. Catch2) or Google Benchmark is introduced later, it will come in via CMake FetchContent and only for `tests/` / `benchmarks/`.
 

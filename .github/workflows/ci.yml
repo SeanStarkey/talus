@@ -52,3 +52,40 @@ jobs:
         run: cmake --build build -j
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  valgrind:
+    name: valgrind (memcheck)
+    runs-on: ubuntu-latest
+    env:
+      CC: gcc
+      CXX: g++
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+      # Plain (non-sanitized) Debug build: Valgrind and AddressSanitizer are
+      # mutually incompatible, so this build must not enable sanitizers.
+      - name: Configure
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DTALUS_BUILD_EXAMPLES=ON
+      - name: Build
+        run: cmake --build build -j
+      - name: Run tests under Valgrind
+        # --error-exitcode=1 fails the job on any invalid access or use of
+        # uninitialized memory (Memcheck's unique contribution over ASan).
+        # Only "definite" leaks count as errors, to avoid false positives from
+        # libstdc++/global allocations; --track-origins pinpoints uninit reads.
+        run: |
+          status=0
+          for t in build/tests/talus_*; do
+            [ -x "$t" ] || continue
+            echo "::group::valgrind $t"
+            valgrind --error-exitcode=1 --leak-check=full \
+                     --errors-for-leak-kinds=definite \
+                     --show-leak-kinds=definite,indirect \
+                     --track-origins=yes "$t" || status=1
+            echo "::endgroup::"
+          done
+          exit $status

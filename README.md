@@ -192,8 +192,18 @@ cmake --build build-asan
 ctest --test-dir build-asan --output-on-failure
 ```
 
-CI (GitHub Actions) builds and tests with GCC and Clang under `-Werror`, and runs
-the sanitizer suite, on every push and pull request.
+On Linux the suite can also run under Valgrind (Memcheck), which catches reads of
+uninitialized memory that the sanitizers do not. It needs a plain, non-sanitized
+build (Valgrind and ASan are incompatible):
+
+```bash
+cmake -B build-vg -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-vg
+for t in build-vg/tests/talus_*; do valgrind --error-exitcode=1 --leak-check=full "$t"; done
+```
+
+CI (GitHub Actions) builds and tests with GCC and Clang under `-Werror`, runs the
+ASan+UBSan suite, and runs the tests under Valgrind, on every push and pull request.
 
 ## Example driver
 
