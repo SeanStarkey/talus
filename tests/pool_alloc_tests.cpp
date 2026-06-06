@@ -1,6 +1,6 @@
 #include <talus/detail/pool_alloc.hpp>
 
-#include <cassert>
+#include "test_check.hpp"
 #include <cstdlib>
 #include <cstddef>
 #include <cstdint>
@@ -65,20 +65,20 @@ void test_create_alignment_and_growth() {
     NodeLike* second = pool.create(2);
     NodeLike* third = pool.create(3);
 
-    assert(first->value == 1);
-    assert(second->value == 2);
-    assert(third->value == 3);
-    assert(reinterpret_cast<std::byte*>(second) - reinterpret_cast<std::byte*>(first)
+    TALUS_CHECK(first->value == 1);
+    TALUS_CHECK(second->value == 2);
+    TALUS_CHECK(third->value == 3);
+    TALUS_CHECK(reinterpret_cast<std::byte*>(second) - reinterpret_cast<std::byte*>(first)
            == static_cast<std::ptrdiff_t>(sizeof(NodeLike)));
-    assert(is_aligned(first, alignof(NodeLike)));
-    assert(is_aligned(second, alignof(NodeLike)));
-    assert(is_aligned(third, alignof(NodeLike)));
-    assert(pool.size() == 3);
-    assert(!pool.empty());
-    assert(pool.block_count() == 2);
-    assert(pool.capacity() == 4);
-    assert(NodeLike::constructed == 3);
-    assert(NodeLike::destroyed == 0);
+    TALUS_CHECK(is_aligned(first, alignof(NodeLike)));
+    TALUS_CHECK(is_aligned(second, alignof(NodeLike)));
+    TALUS_CHECK(is_aligned(third, alignof(NodeLike)));
+    TALUS_CHECK(pool.size() == 3);
+    TALUS_CHECK(!pool.empty());
+    TALUS_CHECK(pool.block_count() == 2);
+    TALUS_CHECK(pool.capacity() == 4);
+    TALUS_CHECK(NodeLike::constructed == 3);
+    TALUS_CHECK(NodeLike::destroyed == 0);
 }
 
 // Test: test_destroy_reuses_slots
@@ -92,21 +92,21 @@ void test_destroy_reuses_slots() {
     NodeLike* second = pool.create(2);
 
     pool.destroy(first);
-    assert(pool.size() == 1);
-    assert(NodeLike::destroyed == 1);
+    TALUS_CHECK(pool.size() == 1);
+    TALUS_CHECK(NodeLike::destroyed == 1);
 
     NodeLike* reused = pool.create(3);
-    assert(reused == first);
-    assert(reused->value == 3);
-    assert(pool.size() == 2);
-    assert(second->value == 2);
-    assert(NodeLike::constructed == 3);
+    TALUS_CHECK(reused == first);
+    TALUS_CHECK(reused->value == 3);
+    TALUS_CHECK(pool.size() == 2);
+    TALUS_CHECK(second->value == 2);
+    TALUS_CHECK(NodeLike::constructed == 3);
 
     pool.clear();
-    assert(pool.empty());
-    assert(pool.block_count() == 0);
-    assert(pool.capacity() == 0);
-    assert(NodeLike::destroyed == 3);
+    TALUS_CHECK(pool.empty());
+    TALUS_CHECK(pool.block_count() == 0);
+    TALUS_CHECK(pool.capacity() == 0);
+    TALUS_CHECK(NodeLike::destroyed == 3);
 }
 
 // Test: test_reset_keeps_capacity
@@ -122,21 +122,21 @@ void test_reset_keeps_capacity() {
     (void)second;
     (void)third;
 
-    assert(pool.block_count() == 2);
-    assert(pool.capacity() == 4);
+    TALUS_CHECK(pool.block_count() == 2);
+    TALUS_CHECK(pool.capacity() == 4);
 
     pool.reset();
-    assert(pool.empty());
-    assert(pool.block_count() == 2);
-    assert(pool.capacity() == 4);
-    assert(NodeLike::destroyed == 3);
+    TALUS_CHECK(pool.empty());
+    TALUS_CHECK(pool.block_count() == 2);
+    TALUS_CHECK(pool.capacity() == 4);
+    TALUS_CHECK(NodeLike::destroyed == 3);
 
     NodeLike* after_reset = pool.create(4);
-    assert(after_reset == first);
-    assert(after_reset->value == 4);
-    assert(pool.size() == 1);
-    assert(pool.block_count() == 2);
-    assert(NodeLike::constructed == 4);
+    TALUS_CHECK(after_reset == first);
+    TALUS_CHECK(after_reset->value == 4);
+    TALUS_CHECK(pool.size() == 1);
+    TALUS_CHECK(pool.block_count() == 2);
+    TALUS_CHECK(NodeLike::constructed == 4);
 }
 
 // Test: test_null_destroy_is_noop
@@ -147,9 +147,9 @@ void test_null_destroy_is_noop() {
     talus::detail::PoolAllocator<NodeLike> pool;
 
     pool.destroy(nullptr);
-    assert(pool.empty());
-    assert(NodeLike::constructed == 0);
-    assert(NodeLike::destroyed == 0);
+    TALUS_CHECK(pool.empty());
+    TALUS_CHECK(NodeLike::constructed == 0);
+    TALUS_CHECK(NodeLike::destroyed == 0);
 }
 
 void run_destroy_interior_pointer_case() {
@@ -165,7 +165,7 @@ void run_destroy_interior_pointer_case() {
 void test_destroy_rejects_interior_pointer(const char* executable) {
     const std::string command = std::string{"\""} + executable + "\" --destroy-interior-pointer";
     int status = std::system(command.c_str());
-    assert(status != 0);
+    TALUS_CHECK(status != 0);
 }
 
 // Test: test_reserve_preallocates_without_construction
@@ -176,20 +176,20 @@ void test_reserve_preallocates_without_construction() {
     talus::detail::PoolAllocator<NodeLike, 2> pool;
 
     pool.reserve(0);
-    assert(pool.empty());
-    assert(pool.block_count() == 0);
-    assert(pool.capacity() == 0);
+    TALUS_CHECK(pool.empty());
+    TALUS_CHECK(pool.block_count() == 0);
+    TALUS_CHECK(pool.capacity() == 0);
 
     pool.reserve(5);
-    assert(pool.empty());
-    assert(pool.block_count() == 3);
-    assert(pool.capacity() == 6);
-    assert(NodeLike::constructed == 0);
-    assert(NodeLike::destroyed == 0);
+    TALUS_CHECK(pool.empty());
+    TALUS_CHECK(pool.block_count() == 3);
+    TALUS_CHECK(pool.capacity() == 6);
+    TALUS_CHECK(NodeLike::constructed == 0);
+    TALUS_CHECK(NodeLike::destroyed == 0);
 
     pool.reserve(3);
-    assert(pool.block_count() == 3);
-    assert(pool.capacity() == 6);
+    TALUS_CHECK(pool.block_count() == 3);
+    TALUS_CHECK(pool.capacity() == 6);
 }
 
 // Test: test_reserve_block_count_does_not_wrap
@@ -199,13 +199,13 @@ void test_reserve_block_count_does_not_wrap() {
 
     try {
         pool.reserve(std::numeric_limits<std::size_t>::max());
-        assert(false);
+        TALUS_CHECK(false);
     } catch (const std::length_error&) {
     }
 
-    assert(pool.empty());
-    assert(pool.block_count() == 0);
-    assert(pool.capacity() == 0);
+    TALUS_CHECK(pool.empty());
+    TALUS_CHECK(pool.block_count() == 0);
+    TALUS_CHECK(pool.capacity() == 0);
 }
 
 // Test: test_create_uses_reserved_blocks_before_growing
@@ -221,22 +221,22 @@ void test_create_uses_reserved_blocks_before_growing() {
     NodeLike* third = pool.create(3);
     NodeLike* fourth = pool.create(4);
 
-    assert(first->value == 1);
-    assert(second->value == 2);
-    assert(third->value == 3);
-    assert(fourth->value == 4);
-    assert(pool.size() == 4);
-    assert(pool.block_count() == 2);
-    assert(pool.capacity() == 4);
+    TALUS_CHECK(first->value == 1);
+    TALUS_CHECK(second->value == 2);
+    TALUS_CHECK(third->value == 3);
+    TALUS_CHECK(fourth->value == 4);
+    TALUS_CHECK(pool.size() == 4);
+    TALUS_CHECK(pool.block_count() == 2);
+    TALUS_CHECK(pool.capacity() == 4);
 
     (void)pool.create(5);
-    assert(pool.size() == 5);
-    assert(pool.block_count() == 3);
-    assert(pool.capacity() == 6);
+    TALUS_CHECK(pool.size() == 5);
+    TALUS_CHECK(pool.block_count() == 3);
+    TALUS_CHECK(pool.capacity() == 6);
 
     pool.clear();
-    assert(NodeLike::constructed == 5);
-    assert(NodeLike::destroyed == 5);
+    TALUS_CHECK(NodeLike::constructed == 5);
+    TALUS_CHECK(NodeLike::destroyed == 5);
 }
 
 // Test: test_reserve_preserves_live_objects
@@ -250,23 +250,23 @@ void test_reserve_preserves_live_objects() {
     NodeLike* second = pool.create(20);
 
     pool.reserve(5);
-    assert(pool.size() == 2);
-    assert(pool.block_count() == 3);
-    assert(pool.capacity() == 6);
-    assert(first->value == 10);
-    assert(second->value == 20);
-    assert(NodeLike::constructed == 2);
-    assert(NodeLike::destroyed == 0);
+    TALUS_CHECK(pool.size() == 2);
+    TALUS_CHECK(pool.block_count() == 3);
+    TALUS_CHECK(pool.capacity() == 6);
+    TALUS_CHECK(first->value == 10);
+    TALUS_CHECK(second->value == 20);
+    TALUS_CHECK(NodeLike::constructed == 2);
+    TALUS_CHECK(NodeLike::destroyed == 0);
 
     NodeLike* third = pool.create(30);
-    assert(third != first);
-    assert(third != second);
-    assert(third->value == 30);
-    assert(pool.size() == 3);
-    assert(pool.block_count() == 3);
+    TALUS_CHECK(third != first);
+    TALUS_CHECK(third != second);
+    TALUS_CHECK(third->value == 30);
+    TALUS_CHECK(pool.size() == 3);
+    TALUS_CHECK(pool.block_count() == 3);
 
     pool.clear();
-    assert(NodeLike::destroyed == 3);
+    TALUS_CHECK(NodeLike::destroyed == 3);
 }
 
 // Test: test_move_semantics
@@ -282,14 +282,14 @@ void test_move_semantics() {
 
         talus::detail::PoolAllocator<NodeLike, 2> dst(std::move(src));
 
-        assert(dst.size() == 2);
-        assert(dst.block_count() == 1);
-        assert(a->value == 10);
-        assert(NodeLike::constructed == 2);
-        assert(NodeLike::destroyed == 0);
+        TALUS_CHECK(dst.size() == 2);
+        TALUS_CHECK(dst.block_count() == 1);
+        TALUS_CHECK(a->value == 10);
+        TALUS_CHECK(NodeLike::constructed == 2);
+        TALUS_CHECK(NodeLike::destroyed == 0);
         // src is valid but unspecified (defaulted move ctor); only dst owns and destructs the blocks.
     }
-    assert(NodeLike::destroyed == 2);
+    TALUS_CHECK(NodeLike::destroyed == 2);
 
     reset_counters();
 
@@ -304,15 +304,15 @@ void test_move_semantics() {
 
         dst = std::move(src);
 
-        assert(NodeLike::destroyed == 1);  // dst's pre-existing object destroyed by clear()
-        assert(dst.size() == 2);
-        assert(dst.block_count() == 1);
+        TALUS_CHECK(NodeLike::destroyed == 1);  // dst's pre-existing object destroyed by clear()
+        TALUS_CHECK(dst.size() == 2);
+        TALUS_CHECK(dst.block_count() == 1);
         // The move assignment operator explicitly resets the moved-from state.
-        assert(src.size() == 0);
-        assert(src.empty());
-        assert(src.block_count() == 0);
+        TALUS_CHECK(src.size() == 0);
+        TALUS_CHECK(src.empty());
+        TALUS_CHECK(src.block_count() == 0);
     }
-    assert(NodeLike::destroyed == 3);
+    TALUS_CHECK(NodeLike::destroyed == 3);
 }
 
 // Test: test_interleaved_free_list_and_sequential
@@ -327,34 +327,34 @@ void test_interleaved_free_list_and_sequential() {
     NodeLike* c = pool.create(3);  // sequential slot 2
 
     pool.destroy(b);
-    assert(pool.size() == 2);
-    assert(NodeLike::destroyed == 1);
+    TALUS_CHECK(pool.size() == 2);
+    TALUS_CHECK(NodeLike::destroyed == 1);
 
     // Free list (LIFO) yields b's slot before advancing the sequential cursor.
     NodeLike* d = pool.create(4);
-    assert(d == b);
-    assert(d->value == 4);
-    assert(pool.size() == 3);
+    TALUS_CHECK(d == b);
+    TALUS_CHECK(d->value == 4);
+    TALUS_CHECK(pool.size() == 3);
 
     // Sequential cursor resumes at slot 3, skipping the reused slot.
     NodeLike* e = pool.create(5);
-    assert(e != a && e != c && e != d);
-    assert(e->value == 5);
-    assert(pool.size() == 4);
+    TALUS_CHECK(e != a && e != c && e != d);
+    TALUS_CHECK(e->value == 5);
+    TALUS_CHECK(pool.size() == 4);
 
     pool.destroy(c);  // free_list = [c]
     pool.destroy(a);  // free_list = [c, a]
 
     NodeLike* f = pool.create(6);
-    assert(f == a);  // LIFO: a was pushed last, returned first
+    TALUS_CHECK(f == a);  // LIFO: a was pushed last, returned first
     NodeLike* g = pool.create(7);
-    assert(g == c);  // LIFO: c was pushed first, returned last
+    TALUS_CHECK(g == c);  // LIFO: c was pushed first, returned last
 
-    assert(pool.size() == 4);
+    TALUS_CHECK(pool.size() == 4);
 
     pool.clear();
-    assert(NodeLike::constructed == 7);
-    assert(NodeLike::destroyed == 7);
+    TALUS_CHECK(NodeLike::constructed == 7);
+    TALUS_CHECK(NodeLike::destroyed == 7);
 }
 
 // Test: test_reset_refills_all_blocks
@@ -369,15 +369,15 @@ void test_reset_refills_all_blocks() {
     NodeLike* c = pool.create(3);  // block 1, slot 0
     NodeLike* d = pool.create(4);  // block 1, slot 1
 
-    assert(pool.block_count() == 2);
-    assert(pool.capacity() == 4);
-    assert(pool.size() == 4);
+    TALUS_CHECK(pool.block_count() == 2);
+    TALUS_CHECK(pool.capacity() == 4);
+    TALUS_CHECK(pool.size() == 4);
 
     pool.reset();
-    assert(pool.empty());
-    assert(pool.block_count() == 2);
-    assert(pool.capacity() == 4);
-    assert(NodeLike::destroyed == 4);
+    TALUS_CHECK(pool.empty());
+    TALUS_CHECK(pool.block_count() == 2);
+    TALUS_CHECK(pool.capacity() == 4);
+    TALUS_CHECK(NodeLike::destroyed == 4);
 
     // Sequential allocation after reset replays through all existing blocks without growing.
     NodeLike* a2 = pool.create(10);
@@ -385,16 +385,16 @@ void test_reset_refills_all_blocks() {
     NodeLike* c2 = pool.create(30);
     NodeLike* d2 = pool.create(40);
 
-    assert(a2 == a);
-    assert(b2 == b);
-    assert(c2 == c);
-    assert(d2 == d);
-    assert(pool.size() == 4);
-    assert(pool.block_count() == 2);
-    assert(NodeLike::constructed == 8);
+    TALUS_CHECK(a2 == a);
+    TALUS_CHECK(b2 == b);
+    TALUS_CHECK(c2 == c);
+    TALUS_CHECK(d2 == d);
+    TALUS_CHECK(pool.size() == 4);
+    TALUS_CHECK(pool.block_count() == 2);
+    TALUS_CHECK(NodeLike::constructed == 8);
 
     pool.clear();
-    assert(NodeLike::destroyed == 8);
+    TALUS_CHECK(NodeLike::destroyed == 8);
 }
 
 // Test: test_throwing_constructor_releases_slot
@@ -408,35 +408,35 @@ void test_throwing_constructor_releases_slot() {
     ThrowingNode::throw_on_construct = true;
     try {
         (void)pool.create(1);
-        assert(false);
+        TALUS_CHECK(false);
     } catch (const std::runtime_error&) {
     }
 
-    assert(pool.empty());
-    assert(pool.capacity() == 2);
+    TALUS_CHECK(pool.empty());
+    TALUS_CHECK(pool.capacity() == 2);
 
     ThrowingNode* first = pool.create(2);
-    assert(first->value == 2);
-    assert(pool.size() == 1);
+    TALUS_CHECK(first->value == 2);
+    TALUS_CHECK(pool.size() == 1);
 
     pool.destroy(first);
-    assert(pool.empty());
-    assert(ThrowingNode::destroyed == 1);
+    TALUS_CHECK(pool.empty());
+    TALUS_CHECK(ThrowingNode::destroyed == 1);
 
     ThrowingNode::throw_on_construct = true;
     try {
         (void)pool.create(3);
-        assert(false);
+        TALUS_CHECK(false);
     } catch (const std::runtime_error&) {
     }
 
-    assert(pool.empty());
-    assert(ThrowingNode::destroyed == 1);
+    TALUS_CHECK(pool.empty());
+    TALUS_CHECK(ThrowingNode::destroyed == 1);
 
     ThrowingNode* reused = pool.create(4);
-    assert(reused == first);
-    assert(reused->value == 4);
-    assert(pool.size() == 1);
+    TALUS_CHECK(reused == first);
+    TALUS_CHECK(reused->value == 4);
+    TALUS_CHECK(pool.size() == 1);
 }
 
 } // namespace

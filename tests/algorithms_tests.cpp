@@ -2,7 +2,7 @@
 #include <talus/detail/node.hpp>
 
 #include <algorithm>
-#include <cassert>
+#include "test_check.hpp"
 #include <cstddef>
 #include <vector>
 #include <string>
@@ -36,7 +36,7 @@ void test_overlap_enlargement_no_siblings() {
     parent.append_child(child.bounds(), &child);
 
     double delta = talus::detail::overlap_enlargement(parent, 0, Box{{0.0, 0.0}, {5.0, 5.0}});
-    assert(delta == 0.0);
+    TALUS_CHECK(delta == 0.0);
 }
 
 // Test: test_overlap_enlargement_no_new_overlap
@@ -53,7 +53,7 @@ void test_overlap_enlargement_no_new_overlap() {
 
     // Expanding child_a to {0,0}-{3,3} still does not reach child_b.
     double delta = talus::detail::overlap_enlargement(parent, 0, Box{{0.0, 0.0}, {3.0, 3.0}});
-    assert(delta == 0.0);
+    TALUS_CHECK(delta == 0.0);
 }
 
 // Test: test_overlap_enlargement_creates_new_overlap
@@ -70,7 +70,7 @@ void test_overlap_enlargement_creates_new_overlap() {
 
     // No current overlap. Expanding child_a to {0,0}-{2.5,1} creates 0.5×1=0.5 overlap.
     double delta = talus::detail::overlap_enlargement(parent, 0, Box{{0.0, 0.0}, {2.5, 1.0}});
-    assert(delta == 0.5);
+    TALUS_CHECK(delta == 0.5);
 }
 
 // Test: test_overlap_enlargement_increases_existing_overlap
@@ -88,7 +88,7 @@ void test_overlap_enlargement_increases_existing_overlap() {
     // Current overlap: {1,0}-{2,2} = 1×2 = 2.
     // After expanding child_a to {0,0}-{3,2}: overlap is {1,0}-{3,2} = 2×2 = 4. Delta = 2.
     double delta = talus::detail::overlap_enlargement(parent, 0, Box{{0.0, 0.0}, {3.0, 2.0}});
-    assert(delta == 2.0);
+    TALUS_CHECK(delta == 2.0);
 }
 
 // Test: test_overlap_enlargement_sums_multiple_siblings
@@ -110,7 +110,7 @@ void test_overlap_enlargement_sums_multiple_siblings() {
     //   overlap with child_c: {0,2}-{1,2.5} = 1×0.5 = 0.5 (was 0)
     //   total delta = 1.0
     double delta = talus::detail::overlap_enlargement(parent, 0, Box{{0.0, 0.0}, {2.5, 2.5}});
-    assert(delta == 1.0);
+    TALUS_CHECK(delta == 1.0);
 }
 
 // Test: test_choose_leaf_selects_minimum_enlargement
@@ -130,7 +130,7 @@ void test_choose_leaf_selects_minimum_enlargement() {
 
     Node* chosen = talus::detail::choose_leaf(root, Box{{10.5, 10.5}, {10.5, 10.5}});
 
-    assert(chosen == &right);
+    TALUS_CHECK(chosen == &right);
 }
 
 // Test: test_choose_leaf_tie_breaks_by_smaller_area
@@ -150,7 +150,7 @@ void test_choose_leaf_tie_breaks_by_smaller_area() {
 
     Node* chosen = talus::detail::choose_leaf(root, Box{{2.5, 2.5}, {2.5, 2.5}});
 
-    assert(chosen == &small);
+    TALUS_CHECK(chosen == &small);
 }
 
 // Test: test_choose_leaf_tie_breaks_by_fewer_entries
@@ -171,7 +171,7 @@ void test_choose_leaf_tie_breaks_by_fewer_entries() {
 
     Node* chosen = talus::detail::choose_leaf(root, Box{{0.5, 0.5}, {0.5, 0.5}});
 
-    assert(chosen == &sparse);
+    TALUS_CHECK(chosen == &sparse);
 }
 
 // Test: test_choose_leaf_prefers_overlap_enlargement_for_leaf_children
@@ -194,7 +194,7 @@ void test_choose_leaf_prefers_overlap_enlargement_for_leaf_children() {
 
     Node* chosen = talus::detail::choose_leaf(root, Box{{50.0, 1.2}, {50.0, 1.2}});
 
-    assert(chosen == &overlap_preferred_by_rstar);
+    TALUS_CHECK(chosen == &overlap_preferred_by_rstar);
 }
 
 // Test: test_insert_appends_to_root_leaf
@@ -206,13 +206,13 @@ void test_insert_appends_to_root_leaf() {
 
     auto result = talus::detail::insert(root, Box{{1.0, 2.0}, {1.0, 2.0}}, Payload{7, "root"});
 
-    assert(result.inserted);
-    assert(!result.needs_split());
-    assert(result.leaf == &root);
-    assert(root.count() == 1);
-    assert(root.value_at(0).value.id == 7);
-    assert(root.value_at(0).value.label == "root");
-    assert((root.bounds() == Box{{1.0, 2.0}, {1.0, 2.0}}));
+    TALUS_CHECK(result.inserted);
+    TALUS_CHECK(!result.needs_split());
+    TALUS_CHECK(result.leaf == &root);
+    TALUS_CHECK(root.count() == 1);
+    TALUS_CHECK(root.value_at(0).value.id == 7);
+    TALUS_CHECK(root.value_at(0).value.label == "root");
+    TALUS_CHECK((root.bounds() == Box{{1.0, 2.0}, {1.0, 2.0}}));
 }
 
 // Test: test_insert_routes_to_child_and_refreshes_ancestor_bounds
@@ -232,13 +232,13 @@ void test_insert_routes_to_child_and_refreshes_ancestor_bounds() {
 
     auto result = talus::detail::insert(root, Box{{12.0, 12.0}, {13.0, 13.0}}, 3);
 
-    assert(result.inserted);
-    assert(result.leaf == &right);
-    assert(right.count() == 2);
-    assert(right.value_at(1).value == 3);
-    assert((right.bounds() == Box{{10.0, 10.0}, {13.0, 13.0}}));
-    assert((root.child_at(1).bounds == right.bounds()));
-    assert((root.bounds() == Box{{0.0, 0.0}, {13.0, 13.0}}));
+    TALUS_CHECK(result.inserted);
+    TALUS_CHECK(result.leaf == &right);
+    TALUS_CHECK(right.count() == 2);
+    TALUS_CHECK(right.value_at(1).value == 3);
+    TALUS_CHECK((right.bounds() == Box{{10.0, 10.0}, {13.0, 13.0}}));
+    TALUS_CHECK((root.child_at(1).bounds == right.bounds()));
+    TALUS_CHECK((root.bounds() == Box{{0.0, 0.0}, {13.0, 13.0}}));
 }
 
 // Test: test_insert_reports_overflow_without_splitting
@@ -254,11 +254,11 @@ void test_insert_reports_overflow_without_splitting() {
 
     auto result = talus::detail::insert(root, Box{{4.0, 4.0}, {4.0, 4.0}}, 4);
 
-    assert(result.inserted);
-    assert(result.needs_split());
-    assert(result.overflow == &root);
-    assert(root.has_overflow());
-    assert(root.count() == Node::entry_capacity);
+    TALUS_CHECK(result.inserted);
+    TALUS_CHECK(result.needs_split());
+    TALUS_CHECK(result.overflow == &root);
+    TALUS_CHECK(root.has_overflow());
+    TALUS_CHECK(root.count() == Node::entry_capacity);
 }
 
 // Test: test_insert_refreshes_bounds_three_levels_deep
@@ -277,13 +277,13 @@ void test_insert_refreshes_bounds_three_levels_deep() {
     // Insert expands leaf bounds, which must propagate through mid and then root.
     auto result = talus::detail::insert(root, Box{{5.0, 5.0}, {6.0, 6.0}}, 2);
 
-    assert(result.inserted);
-    assert(result.leaf == &leaf);
+    TALUS_CHECK(result.inserted);
+    TALUS_CHECK(result.leaf == &leaf);
 
     const Box expected{{0.0, 0.0}, {6.0, 6.0}};
-    assert((leaf.bounds() == expected));
-    assert((mid.child_at(0).bounds == expected));   // mid's stored child bounds updated
-    assert((root.child_at(0).bounds == expected));  // root's stored child bounds updated
+    TALUS_CHECK((leaf.bounds() == expected));
+    TALUS_CHECK((mid.child_at(0).bounds == expected));   // mid's stored child bounds updated
+    TALUS_CHECK((root.child_at(0).bounds == expected));  // root's stored child bounds updated
 }
 
 // Test: test_choose_leaf_returns_leaf_root_directly
@@ -296,7 +296,7 @@ void test_choose_leaf_returns_leaf_root_directly() {
 
     Node* chosen = talus::detail::choose_leaf(root, Box{{5.0, 5.0}, {5.0, 5.0}});
 
-    assert(chosen == &root);
+    TALUS_CHECK(chosen == &root);
 }
 
 // Test: test_choose_leaf_descends_through_internal_nodes
@@ -322,7 +322,7 @@ void test_choose_leaf_descends_through_internal_nodes() {
     // (10.5, 10.5) requires zero enlargement in branch_far at both levels.
     Node* chosen = talus::detail::choose_leaf(root, Box{{10.5, 10.5}, {10.5, 10.5}});
 
-    assert(chosen == &leaf_far);
+    TALUS_CHECK(chosen == &leaf_far);
 }
 
 // Test: test_choose_leaf_uses_area_enlargement_at_internal_level
@@ -349,7 +349,7 @@ void test_choose_leaf_uses_area_enlargement_at_internal_level() {
     // branch_b having zero overlap with branch_a at this level.
     Node* chosen = talus::detail::choose_leaf(root, Box{{50.0, 50.0}, {50.0, 50.0}});
 
-    assert(chosen == &leaf_a);
+    TALUS_CHECK(chosen == &leaf_a);
 }
 
 bool leaf_contains_value(const talus::detail::RTreeNode<int, double, 4>& node, int value) {
@@ -388,22 +388,22 @@ void test_split_node_redistributes_leaf_entries() {
 
     auto result = talus::detail::split_node(node, sibling);
 
-    assert(result.split);
-    assert(result.left == &node);
-    assert(result.right == &sibling);
-    assert(node.is_leaf());
-    assert(sibling.is_leaf());
-    assert(!node.has_overflow());
-    assert(!sibling.has_overflow());
-    assert(!node.underfull());
-    assert(!sibling.underfull());
-    assert(node.count() + sibling.count() == Node::entry_capacity);
+    TALUS_CHECK(result.split);
+    TALUS_CHECK(result.left == &node);
+    TALUS_CHECK(result.right == &sibling);
+    TALUS_CHECK(node.is_leaf());
+    TALUS_CHECK(sibling.is_leaf());
+    TALUS_CHECK(!node.has_overflow());
+    TALUS_CHECK(!sibling.has_overflow());
+    TALUS_CHECK(!node.underfull());
+    TALUS_CHECK(!sibling.underfull());
+    TALUS_CHECK(node.count() + sibling.count() == Node::entry_capacity);
 
     for (int value : {0, 1, 2, 100, 101}) {
-        assert(leaf_contains_value(node, value) || leaf_contains_value(sibling, value));
+        TALUS_CHECK(leaf_contains_value(node, value) || leaf_contains_value(sibling, value));
     }
 
-    assert((node.bounds().max.x <= 2.0 && sibling.bounds().min.x >= 100.0)
+    TALUS_CHECK((node.bounds().max.x <= 2.0 && sibling.bounds().min.x >= 100.0)
         || (sibling.bounds().max.x <= 2.0 && node.bounds().min.x >= 100.0));
 }
 
@@ -436,25 +436,25 @@ void test_split_node_redistributes_internal_entries_and_updates_parents() {
 
     auto result = talus::detail::split_node(node, sibling);
 
-    assert(result.split);
-    assert(result.left == &node);
-    assert(result.right == &sibling);
-    assert(node.is_internal());
-    assert(sibling.is_internal());
-    assert(node.parent() == &parent);
-    assert(sibling.parent() == &parent);
-    assert(!node.has_overflow());
-    assert(!sibling.has_overflow());
-    assert(!node.underfull());
-    assert(!sibling.underfull());
-    assert(node.count() + sibling.count() == Node::entry_capacity);
+    TALUS_CHECK(result.split);
+    TALUS_CHECK(result.left == &node);
+    TALUS_CHECK(result.right == &sibling);
+    TALUS_CHECK(node.is_internal());
+    TALUS_CHECK(sibling.is_internal());
+    TALUS_CHECK(node.parent() == &parent);
+    TALUS_CHECK(sibling.parent() == &parent);
+    TALUS_CHECK(!node.has_overflow());
+    TALUS_CHECK(!sibling.has_overflow());
+    TALUS_CHECK(!node.underfull());
+    TALUS_CHECK(!sibling.underfull());
+    TALUS_CHECK(node.count() + sibling.count() == Node::entry_capacity);
 
     for (Node* child : {&child0, &child1, &child2, &child100, &child101}) {
-        assert(internal_contains_child(node, child) || internal_contains_child(sibling, child));
-        assert(child->parent() == &node || child->parent() == &sibling);
+        TALUS_CHECK(internal_contains_child(node, child) || internal_contains_child(sibling, child));
+        TALUS_CHECK(child->parent() == &node || child->parent() == &sibling);
     }
 
-    assert((node.bounds().max.x <= 2.0 && sibling.bounds().min.x >= 100.0)
+    TALUS_CHECK((node.bounds().max.x <= 2.0 && sibling.bounds().min.x >= 100.0)
         || (sibling.bounds().max.x <= 2.0 && node.bounds().min.x >= 100.0));
 }
 
@@ -469,7 +469,7 @@ void test_split_node_resets_internal_sibling_for_leaf_split() {
 
     stale_child.append_value(Box{{-10.0, -10.0}, {-9.0, -9.0}}, -1);
     sibling.append_child(stale_child.bounds(), &stale_child);
-    assert(stale_child.parent() == &sibling);
+    TALUS_CHECK(stale_child.parent() == &sibling);
 
     node.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 0);
     node.append_value(Box{{1.0, 0.0}, {1.0, 0.0}}, 1);
@@ -479,12 +479,12 @@ void test_split_node_resets_internal_sibling_for_leaf_split() {
 
     auto result = talus::detail::split_node(node, sibling);
 
-    assert(result.split);
-    assert(sibling.is_leaf());
-    assert(stale_child.parent() == nullptr);
-    assert(node.count() + sibling.count() == Node::entry_capacity);
-    assert(!leaf_contains_value(node, -1));
-    assert(!leaf_contains_value(sibling, -1));
+    TALUS_CHECK(result.split);
+    TALUS_CHECK(sibling.is_leaf());
+    TALUS_CHECK(stale_child.parent() == nullptr);
+    TALUS_CHECK(node.count() + sibling.count() == Node::entry_capacity);
+    TALUS_CHECK(!leaf_contains_value(node, -1));
+    TALUS_CHECK(!leaf_contains_value(sibling, -1));
 }
 
 // Test: test_split_node_resets_leaf_sibling_for_internal_split
@@ -516,12 +516,12 @@ void test_split_node_resets_leaf_sibling_for_internal_split() {
 
     auto result = talus::detail::split_node(node, sibling);
 
-    assert(result.split);
-    assert(sibling.is_internal());
-    assert(node.count() + sibling.count() == Node::entry_capacity);
+    TALUS_CHECK(result.split);
+    TALUS_CHECK(sibling.is_internal());
+    TALUS_CHECK(node.count() + sibling.count() == Node::entry_capacity);
     for (Node* child : {&child0, &child1, &child2, &child100, &child101}) {
-        assert(internal_contains_child(node, child) || internal_contains_child(sibling, child));
-        assert(child->parent() == &node || child->parent() == &sibling);
+        TALUS_CHECK(internal_contains_child(node, child) || internal_contains_child(sibling, child));
+        TALUS_CHECK(child->parent() == &node || child->parent() == &sibling);
     }
 }
 
@@ -541,13 +541,13 @@ void test_split_node_can_choose_y_axis_distribution() {
 
     auto result = talus::detail::split_node(node, sibling);
 
-    assert(result.split);
-    assert(!node.has_overflow());
-    assert(!sibling.has_overflow());
-    assert(!node.underfull());
-    assert(!sibling.underfull());
-    assert(node.count() + sibling.count() == Node::entry_capacity);
-    assert((node.bounds().max.y <= 2.0 && sibling.bounds().min.y >= 100.0)
+    TALUS_CHECK(result.split);
+    TALUS_CHECK(!node.has_overflow());
+    TALUS_CHECK(!sibling.has_overflow());
+    TALUS_CHECK(!node.underfull());
+    TALUS_CHECK(!sibling.underfull());
+    TALUS_CHECK(node.count() + sibling.count() == Node::entry_capacity);
+    TALUS_CHECK((node.bounds().max.y <= 2.0 && sibling.bounds().min.y >= 100.0)
         || (sibling.bounds().max.y <= 2.0 && node.bounds().min.y >= 100.0));
 }
 
@@ -570,15 +570,15 @@ void test_split_node_uses_deterministic_order_for_identical_bounds() {
     auto first_result = talus::detail::split_node(first, first_sibling);
     auto second_result = talus::detail::split_node(second, second_sibling);
 
-    assert(first_result.split);
-    assert(second_result.split);
-    assert(first.count() == second.count());
-    assert(first_sibling.count() == second_sibling.count());
+    TALUS_CHECK(first_result.split);
+    TALUS_CHECK(second_result.split);
+    TALUS_CHECK(first.count() == second.count());
+    TALUS_CHECK(first_sibling.count() == second_sibling.count());
     for (std::size_t i = 0; i < first.count(); ++i) {
-        assert(first.value_at(i).value == second.value_at(i).value);
+        TALUS_CHECK(first.value_at(i).value == second.value_at(i).value);
     }
     for (std::size_t i = 0; i < first_sibling.count(); ++i) {
-        assert(first_sibling.value_at(i).value == second_sibling.value_at(i).value);
+        TALUS_CHECK(first_sibling.value_at(i).value == second_sibling.value_at(i).value);
     }
 }
 
@@ -600,13 +600,13 @@ void test_split_node_evaluates_multiple_distributions_for_larger_capacity() {
 
     auto result = talus::detail::split_node(node, sibling);
 
-    assert(result.split);
-    assert(!node.has_overflow());
-    assert(!sibling.has_overflow());
-    assert(!node.underfull());
-    assert(!sibling.underfull());
-    assert(node.count() + sibling.count() == Node::entry_capacity);
-    assert((node.bounds().max.x <= 50.0 && sibling.bounds().min.x >= 100.0)
+    TALUS_CHECK(result.split);
+    TALUS_CHECK(!node.has_overflow());
+    TALUS_CHECK(!sibling.has_overflow());
+    TALUS_CHECK(!node.underfull());
+    TALUS_CHECK(!sibling.underfull());
+    TALUS_CHECK(node.count() + sibling.count() == Node::entry_capacity);
+    TALUS_CHECK((node.bounds().max.x <= 50.0 && sibling.bounds().min.x >= 100.0)
         || (sibling.bounds().max.x <= 50.0 && node.bounds().min.x >= 100.0));
 }
 
@@ -633,8 +633,8 @@ void test_split_node_leaf_bounds_cover_original() {
 
     auto result = talus::detail::split_node(node, sibling);
 
-    assert(result.split);
-    assert((node.bounds().expand(sibling.bounds()) == original));
+    TALUS_CHECK(result.split);
+    TALUS_CHECK((node.bounds().expand(sibling.bounds()) == original));
 }
 
 // Test: test_split_node_internal_bounds_cover_original
@@ -671,10 +671,10 @@ void test_split_node_internal_bounds_cover_original() {
 
     auto result = talus::detail::split_node(node, sibling);
 
-    assert(result.split);
-    assert(node.is_internal());
-    assert(sibling.is_internal());
-    assert((node.bounds().expand(sibling.bounds()) == original));
+    TALUS_CHECK(result.split);
+    TALUS_CHECK(node.is_internal());
+    TALUS_CHECK(sibling.is_internal());
+    TALUS_CHECK((node.bounds().expand(sibling.bounds()) == original));
 }
 
 // Test: test_split_node_leaf_move_only_values
@@ -691,11 +691,11 @@ void test_split_node_leaf_move_only_values() {
             MoveOnlyValue{i});
     }
 
-    assert(node.has_overflow());
+    TALUS_CHECK(node.has_overflow());
     auto result = talus::detail::split_node(node, sibling);
 
-    assert(result.split);
-    assert(node.count() + sibling.count() == Node::entry_capacity);
+    TALUS_CHECK(result.split);
+    TALUS_CHECK(node.count() + sibling.count() == Node::entry_capacity);
 }
 
 void collect_leaf_values(
@@ -721,15 +721,15 @@ void assert_internal_bounds_match_children(const talus::detail::RTreeNode<int, d
     Box combined = node.child_at(0).bounds;
     for (std::size_t i = 0; i < node.count(); ++i) {
         const auto& entry = node.child_at(i);
-        assert(entry.child != nullptr);
-        assert(entry.child->parent() == &node);
-        assert((entry.bounds == entry.child->bounds()));
+        TALUS_CHECK(entry.child != nullptr);
+        TALUS_CHECK(entry.child->parent() == &node);
+        TALUS_CHECK((entry.bounds == entry.child->bounds()));
         if (i > 0) {
             combined = combined.expand(entry.bounds);
         }
         assert_internal_bounds_match_children(*entry.child);
     }
-    assert((node.bounds() == combined));
+    TALUS_CHECK((node.bounds() == combined));
 }
 
 // Test: test_adjust_tree_grows_leaf_root_in_place
@@ -748,21 +748,21 @@ void test_adjust_tree_grows_leaf_root_in_place() {
 
     auto result = talus::detail::adjust_tree(root, &root, pool);
 
-    assert(result.adjusted);
-    assert(result.root == &root);
-    assert(result.split_count == 1);
-    assert(result.grew_height);
-    assert(root.is_internal());
-    assert(root.parent() == nullptr);
-    assert(root.count() == 2);
-    assert(!root.has_overflow());
+    TALUS_CHECK(result.adjusted);
+    TALUS_CHECK(result.root == &root);
+    TALUS_CHECK(result.split_count == 1);
+    TALUS_CHECK(result.grew_height);
+    TALUS_CHECK(root.is_internal());
+    TALUS_CHECK(root.parent() == nullptr);
+    TALUS_CHECK(root.count() == 2);
+    TALUS_CHECK(!root.has_overflow());
     assert_internal_bounds_match_children(root);
 
     std::vector<int> values;
     collect_leaf_values(root, values);
-    assert(values.size() == Node::entry_capacity);
+    TALUS_CHECK(values.size() == Node::entry_capacity);
     for (int value : {0, 1, 2, 100, 101}) {
-        assert(std::find(values.begin(), values.end(), value) != values.end());
+        TALUS_CHECK(std::find(values.begin(), values.end(), value) != values.end());
     }
 }
 
@@ -784,20 +784,20 @@ void test_adjust_tree_attaches_split_sibling_to_parent() {
 
     auto result = talus::detail::adjust_tree(root, &leaf, pool);
 
-    assert(result.adjusted);
-    assert(result.split_count == 1);
-    assert(!result.grew_height);
-    assert(root.is_internal());
-    assert(root.count() == 2);
-    assert(leaf.parent() == &root);
-    assert(!leaf.has_overflow());
+    TALUS_CHECK(result.adjusted);
+    TALUS_CHECK(result.split_count == 1);
+    TALUS_CHECK(!result.grew_height);
+    TALUS_CHECK(root.is_internal());
+    TALUS_CHECK(root.count() == 2);
+    TALUS_CHECK(leaf.parent() == &root);
+    TALUS_CHECK(!leaf.has_overflow());
     assert_internal_bounds_match_children(root);
 
     std::vector<int> values;
     collect_leaf_values(root, values);
-    assert(values.size() == Node::entry_capacity);
+    TALUS_CHECK(values.size() == Node::entry_capacity);
     for (int value : {0, 1, 2, 100, 101}) {
-        assert(std::find(values.begin(), values.end(), value) != values.end());
+        TALUS_CHECK(std::find(values.begin(), values.end(), value) != values.end());
     }
 }
 
@@ -830,19 +830,19 @@ void test_adjust_tree_propagates_parent_split_to_new_root() {
 
     auto result = talus::detail::adjust_tree(root, &overflowing_leaf, pool);
 
-    assert(result.adjusted);
-    assert(result.split_count == 2);
-    assert(result.grew_height);
-    assert(root.is_internal());
-    assert(root.parent() == nullptr);
-    assert(root.count() == 2);
-    assert(!root.has_overflow());
+    TALUS_CHECK(result.adjusted);
+    TALUS_CHECK(result.split_count == 2);
+    TALUS_CHECK(result.grew_height);
+    TALUS_CHECK(root.is_internal());
+    TALUS_CHECK(root.parent() == nullptr);
+    TALUS_CHECK(root.count() == 2);
+    TALUS_CHECK(!root.has_overflow());
     assert_internal_bounds_match_children(root);
 
     std::vector<int> values;
     collect_leaf_values(root, values);
     for (int value : {0, 1, 2, 100, 101, 200, 300, 400}) {
-        assert(std::find(values.begin(), values.end(), value) != values.end());
+        TALUS_CHECK(std::find(values.begin(), values.end(), value) != values.end());
     }
 }
 
@@ -866,17 +866,17 @@ void test_insert_with_split_keeps_tree_valid_after_root_split() {
         Box{{4.0, 0.0}, {4.0, 0.0}},
         4);
 
-    assert(result.inserted);
-    assert(result.root == &root);
-    assert(result.split_count == 1);
-    assert(result.grew_height);
-    assert(root.is_internal());
+    TALUS_CHECK(result.inserted);
+    TALUS_CHECK(result.root == &root);
+    TALUS_CHECK(result.split_count == 1);
+    TALUS_CHECK(result.grew_height);
+    TALUS_CHECK(root.is_internal());
     assert_internal_bounds_match_children(root);
 
     std::vector<int> values;
     collect_leaf_values(root, values);
     for (int value : {0, 1, 2, 3, 4}) {
-        assert(std::find(values.begin(), values.end(), value) != values.end());
+        TALUS_CHECK(std::find(values.begin(), values.end(), value) != values.end());
     }
 }
 
@@ -895,8 +895,8 @@ void test_search_empty_root_returns_no_matches() {
             matches.push_back(value);
         });
 
-    assert(count == 0);
-    assert(matches.empty());
+    TALUS_CHECK(count == 0);
+    TALUS_CHECK(matches.empty());
 }
 
 // Test: test_search_leaf_reports_intersecting_values
@@ -919,8 +919,8 @@ void test_search_leaf_reports_intersecting_values() {
         });
 
     std::sort(matches.begin(), matches.end());
-    assert(count == 3);
-    assert((matches == std::vector<int>{0, 1, 2}));
+    TALUS_CHECK(count == 3);
+    TALUS_CHECK((matches == std::vector<int>{0, 1, 2}));
 }
 
 // Test: test_search_internal_prunes_disjoint_children
@@ -948,8 +948,8 @@ void test_search_internal_prunes_disjoint_children() {
         });
 
     std::sort(matches.begin(), matches.end());
-    assert(count == 2);
-    assert((matches == std::vector<int>{0, 1}));
+    TALUS_CHECK(count == 2);
+    TALUS_CHECK((matches == std::vector<int>{0, 1}));
 }
 
 // Test: test_search_split_insert_tree_matches_deterministic_query
@@ -970,10 +970,10 @@ void test_search_split_insert_tree_matches_deterministic_query() {
                 {static_cast<double>(value), static_cast<double>(value)}
             },
             value);
-        assert(result.inserted);
+        TALUS_CHECK(result.inserted);
     }
 
-    assert(root.is_internal());
+    TALUS_CHECK(root.is_internal());
     assert_internal_bounds_match_children(root);
 
     std::vector<int> matches;
@@ -985,8 +985,8 @@ void test_search_split_insert_tree_matches_deterministic_query() {
         });
 
     std::sort(matches.begin(), matches.end());
-    assert(count == 3);
-    assert((matches == std::vector<int>{100, 101, 102}));
+    TALUS_CHECK(count == 3);
+    TALUS_CHECK((matches == std::vector<int>{100, 101, 102}));
 }
 
 } // namespace

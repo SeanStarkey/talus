@@ -176,9 +176,10 @@ ctest --test-dir build --output-on-failure
 ```
 
 Tests are built by default at the top level. They are plain executables (no
-external test framework yet) whose checks are `assert`-based, so build them with
-assertions enabled (a `Debug` build, as above). Every index operation is validated
-against a brute-force linear-scan oracle.
+external test framework) whose checks always run — they use a local `TALUS_CHECK`
+macro that is not stripped by `NDEBUG`, so the suite is meaningful in any build
+configuration, including `Release`. Every index operation is validated against a
+brute-force linear-scan oracle.
 
 ## Example driver
 

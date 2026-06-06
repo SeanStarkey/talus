@@ -40,7 +40,7 @@ their purpose and ownership boundaries.
 Public structures, concepts, helpers, and storage methods now include
 Doxygen-style comments for generated API documentation.
 
-The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, focused pool allocator and R-tree node storage tests, R-tree algorithm tests, and public `SpatialIndex` oracle tests.
+The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, focused pool allocator and R-tree node storage tests, R-tree algorithm tests, and public `SpatialIndex` oracle tests. Test invariants are checked with a local `TALUS_CHECK` macro (`tests/test_check.hpp`) that always runs and is not stripped by `NDEBUG`, so the suite stays meaningful in `Release` as well as `Debug`.
 
 CMake configure, build, and `ctest` pass with the current foundation, pool allocator, node storage, algorithm, and public R-tree test targets.
 
@@ -51,6 +51,7 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 - Completed: add placeholder `tests/CMakeLists.txt`, `examples/CMakeLists.txt`, and `benchmarks/CMakeLists.txt`.
 - Completed: add `include/talus/talus.hpp` that includes all current public headers.
 - Completed: add basic smoke tests for `geometry.hpp`, `concepts.hpp`, and the umbrella include.
+- Completed: make test checks non-vacuous under `NDEBUG`/Release via a local always-on `TALUS_CHECK` macro (`tests/test_check.hpp`) in place of `assert`.
 
 ### 2. Harden Foundation APIs
 

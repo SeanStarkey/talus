@@ -23,7 +23,7 @@ ctest --test-dir build --output-on-failure
 cmake -B build -DTALUS_BUILD_BENCHMARKS=ON -DTALUS_BUILD_EXAMPLES=ON
 ```
 
-No external dependencies are needed to build the library itself. Tests are currently plain `assert`-based executables with no external framework, and `benchmarks/` is an empty placeholder — so nothing is fetched today. If a test framework (e.g. Catch2) or Google Benchmark is introduced later, it will come in via CMake FetchContent and only for `tests/` / `benchmarks/`.
+No external dependencies are needed to build the library itself. Tests are plain executables with no external framework — they check invariants with a local `TALUS_CHECK` macro (`tests/test_check.hpp`) that always runs, so it is not stripped by `NDEBUG` and the suite stays meaningful in `Release` builds — and `benchmarks/` is an empty placeholder, so nothing is fetched today. If a test framework (e.g. Catch2) or Google Benchmark is introduced later, it will come in via CMake FetchContent and only for `tests/` / `benchmarks/`.
 
 ## Development status
 

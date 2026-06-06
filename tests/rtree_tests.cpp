@@ -3,7 +3,7 @@
 #include "brute_force.hpp"
 
 #include <algorithm>
-#include <cassert>
+#include "test_check.hpp"
 #include <cstddef>
 #include <random>
 #include <string>
@@ -47,7 +47,7 @@ template<typename T>
 
 template<typename T>
 void assert_same_ids(std::vector<T> actual, std::vector<T> expected) {
-    assert(sorted_ids(std::move(actual)) == sorted_ids(std::move(expected)));
+    TALUS_CHECK(sorted_ids(std::move(actual)) == sorted_ids(std::move(expected)));
 }
 
 // Test: test_spatial_index_starts_empty_and_tracks_size
@@ -56,23 +56,23 @@ void assert_same_ids(std::vector<T> actual, std::vector<T> expected) {
 void test_spatial_index_starts_empty_and_tracks_size() {
     talus::SpatialIndex<PointRecord, double, 4> index;
 
-    assert(index.empty());
-    assert(index.size() == 0);
+    TALUS_CHECK(index.empty());
+    TALUS_CHECK(index.size() == 0);
 
     index.insert(PointRecord{1.0, 2.0, 1});
     index.insert(PointRecord{3.0, 4.0, 2});
 
-    assert(!index.empty());
-    assert(index.size() == 2);
+    TALUS_CHECK(!index.empty());
+    TALUS_CHECK(index.size() == 2);
 
     index.clear();
 
-    assert(index.empty());
-    assert(index.size() == 0);
-    assert(index.search(Box{{0.0, 0.0}, {10.0, 10.0}}).empty());
+    TALUS_CHECK(index.empty());
+    TALUS_CHECK(index.size() == 0);
+    TALUS_CHECK(index.search(Box{{0.0, 0.0}, {10.0, 10.0}}).empty());
 
     index.insert(PointRecord{5.0, 6.0, 3});
-    assert(index.size() == 1);
+    TALUS_CHECK(index.size() == 1);
     assert_same_ids(index.search(Box{{5.0, 6.0}, {5.0, 6.0}}), std::vector<PointRecord>{{5.0, 6.0, 3}});
 }
 
@@ -149,8 +149,8 @@ void test_spatial_index_accepts_move_inserted_values() {
     index.insert(std::move(point));
 
     const std::vector<NamedPoint> matches = index.search(Box{{1.0, 2.0}, {1.0, 2.0}});
-    assert(matches.size() == 1);
-    assert(matches.front().name == "alpha");
+    TALUS_CHECK(matches.size() == 1);
+    TALUS_CHECK(matches.front().name == "alpha");
 }
 
 // Test: test_spatial_index_randomized_search_matches_brute_force

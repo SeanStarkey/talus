@@ -1,7 +1,7 @@
 #include <talus/detail/node.hpp>
 #include <talus/detail/pool_alloc.hpp>
 
-#include <cassert>
+#include "test_check.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -98,34 +98,34 @@ void test_leaf_node_stores_non_default_constructible_values() {
         static_assert(Node::entry_capacity == 5);
         static_assert(alignof(Node) == 64);
 
-        assert(node.is_leaf());
-        assert(!node.is_internal());
-        assert(node.empty());
-        assert(node.count() == 0);
-        assert(!node.full());
-        assert(!node.has_overflow());
-        assert(node.underfull());
+        TALUS_CHECK(node.is_leaf());
+        TALUS_CHECK(!node.is_internal());
+        TALUS_CHECK(node.empty());
+        TALUS_CHECK(node.count() == 0);
+        TALUS_CHECK(!node.full());
+        TALUS_CHECK(!node.has_overflow());
+        TALUS_CHECK(node.underfull());
 
         TrackedValue alpha{"alpha"};
         node.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, alpha);
         node.append_value(Box{{2.0, 2.0}, {3.0, 3.0}}, TrackedValue{"beta"});
 
-        assert(node.count() == 2);
-        assert(node.full() == false);
-        assert(node.underfull() == false);
-        assert(node.value_at(0).value.name == "alpha");
-        assert(node.value_at(1).value.name == "beta");
-        assert((node.bounds() == Box{{0.0, 0.0}, {3.0, 3.0}}));
-        assert(TrackedValue::copied == 1);
-        assert(TrackedValue::moved == 1);
+        TALUS_CHECK(node.count() == 2);
+        TALUS_CHECK(node.full() == false);
+        TALUS_CHECK(node.underfull() == false);
+        TALUS_CHECK(node.value_at(0).value.name == "alpha");
+        TALUS_CHECK(node.value_at(1).value.name == "beta");
+        TALUS_CHECK((node.bounds() == Box{{0.0, 0.0}, {3.0, 3.0}}));
+        TALUS_CHECK(TrackedValue::copied == 1);
+        TALUS_CHECK(TrackedValue::moved == 1);
 
         node.clear();
-        assert(node.empty());
-        assert(node.bounds() == Box{});
-        assert(TrackedValue::destroyed == 3); // temporary beta + two node entries (alpha local is still in scope)
+        TALUS_CHECK(node.empty());
+        TALUS_CHECK(node.bounds() == Box{});
+        TALUS_CHECK(TrackedValue::destroyed == 3); // temporary beta + two node entries (alpha local is still in scope)
     }
 
-    assert(TrackedValue::constructed == TrackedValue::destroyed);
+    TALUS_CHECK(TrackedValue::constructed == TrackedValue::destroyed);
 }
 
 // Test: test_leaf_node_supports_move_only_values_and_overflow_slot
@@ -140,20 +140,20 @@ void test_leaf_node_supports_move_only_values_and_overflow_slot() {
     node.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, MoveOnlyValue{0});
     node.append_value(Box{{1.0, 1.0}, {1.0, 1.0}}, MoveOnlyValue{1});
     node.append_value(Box{{2.0, 2.0}, {2.0, 2.0}}, MoveOnlyValue{2});
-    assert(!node.full());
+    TALUS_CHECK(!node.full());
 
     node.append_value(Box{{3.0, 3.0}, {3.0, 3.0}}, MoveOnlyValue{3});
-    assert(node.full());
-    assert(!node.has_overflow());
-    assert(node.can_append_entry());
+    TALUS_CHECK(node.full());
+    TALUS_CHECK(!node.has_overflow());
+    TALUS_CHECK(node.can_append_entry());
 
     node.append_value(Box{{4.0, 4.0}, {4.0, 4.0}}, MoveOnlyValue{4});
-    assert(node.count() == Node::entry_capacity);
-    assert(node.full());
-    assert(node.has_overflow());
-    assert(!node.can_append_entry());
-    assert(*node.value_at(4).value.value == 4);
-    assert((node.bounds() == Box{{0.0, 0.0}, {4.0, 4.0}}));
+    TALUS_CHECK(node.count() == Node::entry_capacity);
+    TALUS_CHECK(node.full());
+    TALUS_CHECK(node.has_overflow());
+    TALUS_CHECK(!node.can_append_entry());
+    TALUS_CHECK(*node.value_at(4).value.value == 4);
+    TALUS_CHECK((node.bounds() == Box{{0.0, 0.0}, {4.0, 4.0}}));
 }
 
 // Test: test_leaf_node_emplaces_immovable_values
@@ -167,10 +167,10 @@ void test_leaf_node_emplaces_immovable_values() {
 
     auto& entry = node.emplace_value(Box{{-1.0, -1.0}, {1.0, 1.0}}, 42, "immovable");
 
-    assert(node.count() == 1);
-    assert(entry.value.id == 42);
-    assert(entry.value.label == "immovable");
-    assert((node.bounds() == Box{{-1.0, -1.0}, {1.0, 1.0}}));
+    TALUS_CHECK(node.count() == 1);
+    TALUS_CHECK(entry.value.id == 42);
+    TALUS_CHECK(entry.value.label == "immovable");
+    TALUS_CHECK((node.bounds() == Box{{-1.0, -1.0}, {1.0, 1.0}}));
 }
 
 // Test: test_internal_node_tracks_children_and_parent_links
@@ -182,27 +182,27 @@ void test_internal_node_tracks_children_and_parent_links() {
     Node left;
     Node right;
 
-    assert(parent.is_internal());
-    assert(!parent.is_leaf());
+    TALUS_CHECK(parent.is_internal());
+    TALUS_CHECK(!parent.is_leaf());
 
     parent.append_child(Box{{0.0, 0.0}, {1.0, 1.0}}, &left);
     parent.append_child(Box{{2.0, 2.0}, {4.0, 4.0}}, &right);
 
-    assert(parent.count() == 2);
-    assert(parent.child_at(0).child == &left);
-    assert(parent.child_at(1).child == &right);
-    assert(left.parent() == &parent);
-    assert(right.parent() == &parent);
-    assert((parent.bounds() == Box{{0.0, 0.0}, {4.0, 4.0}}));
+    TALUS_CHECK(parent.count() == 2);
+    TALUS_CHECK(parent.child_at(0).child == &left);
+    TALUS_CHECK(parent.child_at(1).child == &right);
+    TALUS_CHECK(left.parent() == &parent);
+    TALUS_CHECK(right.parent() == &parent);
+    TALUS_CHECK((parent.bounds() == Box{{0.0, 0.0}, {4.0, 4.0}}));
 
     parent.update_bounds(0, Box{{-1.0, -2.0}, {1.0, 1.0}});
-    assert((parent.child_at(0).bounds == Box{{-1.0, -2.0}, {1.0, 1.0}}));
-    assert((parent.bounds() == Box{{-1.0, -2.0}, {4.0, 4.0}}));
+    TALUS_CHECK((parent.child_at(0).bounds == Box{{-1.0, -2.0}, {1.0, 1.0}}));
+    TALUS_CHECK((parent.bounds() == Box{{-1.0, -2.0}, {4.0, 4.0}}));
 
     parent.clear();
-    assert(parent.empty());
-    assert(left.parent() == nullptr);
-    assert(right.parent() == nullptr);
+    TALUS_CHECK(parent.empty());
+    TALUS_CHECK(left.parent() == nullptr);
+    TALUS_CHECK(right.parent() == nullptr);
 }
 
 // Test: test_leaf_node_update_bounds_recomputes_aggregate
@@ -214,15 +214,15 @@ void test_leaf_node_update_bounds_recomputes_aggregate() {
     node.append_value(Box{{0.0, 0.0}, {2.0, 2.0}}, 1);
     node.append_value(Box{{3.0, 3.0}, {5.0, 5.0}}, 2);
 
-    assert((node.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
+    TALUS_CHECK((node.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
 
     node.update_bounds(1, Box{{3.0, 3.0}, {4.0, 4.0}}); // shrink entry 1
-    assert((node.value_at(1).bounds == Box{{3.0, 3.0}, {4.0, 4.0}}));
-    assert((node.bounds() == Box{{0.0, 0.0}, {4.0, 4.0}}));
+    TALUS_CHECK((node.value_at(1).bounds == Box{{3.0, 3.0}, {4.0, 4.0}}));
+    TALUS_CHECK((node.bounds() == Box{{0.0, 0.0}, {4.0, 4.0}}));
 
     node.update_bounds(0, Box{{-1.0, -1.0}, {2.0, 2.0}}); // expand entry 0
-    assert((node.value_at(0).bounds == Box{{-1.0, -1.0}, {2.0, 2.0}}));
-    assert((node.bounds() == Box{{-1.0, -1.0}, {4.0, 4.0}}));
+    TALUS_CHECK((node.value_at(0).bounds == Box{{-1.0, -1.0}, {2.0, 2.0}}));
+    TALUS_CHECK((node.bounds() == Box{{-1.0, -1.0}, {4.0, 4.0}}));
 }
 
 // Test: test_reset_changes_node_kind_after_destroying_active_entries
@@ -234,21 +234,21 @@ void test_reset_changes_node_kind_after_destroying_active_entries() {
 
     Node node;
     node.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, TrackedValue{"stored"});
-    assert(node.is_leaf());
+    TALUS_CHECK(node.is_leaf());
 
     node.reset_as_internal();
-    assert(node.is_internal());
-    assert(node.empty());
-    assert(TrackedValue::constructed == TrackedValue::destroyed);
+    TALUS_CHECK(node.is_internal());
+    TALUS_CHECK(node.empty());
+    TALUS_CHECK(TrackedValue::constructed == TrackedValue::destroyed);
 
     Node child;
     node.append_child(Box{{1.0, 1.0}, {2.0, 2.0}}, &child);
-    assert(child.parent() == &node);
+    TALUS_CHECK(child.parent() == &node);
 
     node.reset_as_leaf();
-    assert(node.is_leaf());
-    assert(node.empty());
-    assert(child.parent() == nullptr);
+    TALUS_CHECK(node.is_leaf());
+    TALUS_CHECK(node.empty());
+    TALUS_CHECK(child.parent() == nullptr);
 }
 
 // Test: test_remove_at_leaf_swaps_last_into_gap
@@ -263,10 +263,10 @@ void test_remove_at_leaf_swaps_last_into_gap() {
 
     node.remove_at(1); // remove 20; 30 should swap into index 1
 
-    assert(node.count() == 2);
-    assert(node.value_at(0).value == 10);
-    assert(node.value_at(1).value == 30);
-    assert((node.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
+    TALUS_CHECK(node.count() == 2);
+    TALUS_CHECK(node.value_at(0).value == 10);
+    TALUS_CHECK(node.value_at(1).value == 30);
+    TALUS_CHECK((node.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
 }
 
 // Test: test_remove_at_leaf_last_entry
@@ -280,9 +280,9 @@ void test_remove_at_leaf_last_entry() {
 
     node.remove_at(1); // no swap needed
 
-    assert(node.count() == 1);
-    assert(node.value_at(0).value == 10);
-    assert((node.bounds() == Box{{0.0, 0.0}, {1.0, 1.0}}));
+    TALUS_CHECK(node.count() == 1);
+    TALUS_CHECK(node.value_at(0).value == 10);
+    TALUS_CHECK((node.bounds() == Box{{0.0, 0.0}, {1.0, 1.0}}));
 }
 
 // Test: test_remove_at_leaf_shrinks_bounds
@@ -295,12 +295,12 @@ void test_remove_at_leaf_shrinks_bounds() {
     node.append_value(Box{{5.0, 5.0}, {10.0, 10.0}}, 2); // extends bounds the most
     node.append_value(Box{{0.0, 0.0}, {2.0, 2.0}}, 3);
 
-    assert((node.bounds() == Box{{0.0, 0.0}, {10.0, 10.0}}));
+    TALUS_CHECK((node.bounds() == Box{{0.0, 0.0}, {10.0, 10.0}}));
 
     node.remove_at(1); // remove the large box; entry 3 swaps into index 1
 
     // remaining: {0,0}-{1,1} and {0,0}-{2,2}
-    assert((node.bounds() == Box{{0.0, 0.0}, {2.0, 2.0}}));
+    TALUS_CHECK((node.bounds() == Box{{0.0, 0.0}, {2.0, 2.0}}));
 }
 
 // Test: test_remove_at_leaf_tracks_lifetimes
@@ -318,11 +318,11 @@ void test_remove_at_leaf_tracks_lifetimes() {
     // remove_at(1): destroys "second", move-constructs "third" into index 1, destroys moved-from "third"
     node.remove_at(1);
 
-    assert(TrackedValue::moved == 1);
-    assert(TrackedValue::destroyed == 2); // "second" + moved-from "third"
-    assert(TrackedValue::constructed == 1); // the move-construct of "third" into the gap
-    assert(node.value_at(0).value.name == "first");
-    assert(node.value_at(1).value.name == "third");
+    TALUS_CHECK(TrackedValue::moved == 1);
+    TALUS_CHECK(TrackedValue::destroyed == 2); // "second" + moved-from "third"
+    TALUS_CHECK(TrackedValue::constructed == 1); // the move-construct of "third" into the gap
+    TALUS_CHECK(node.value_at(0).value.name == "first");
+    TALUS_CHECK(node.value_at(1).value.name == "third");
 }
 
 // Test: test_remove_at_internal_clears_child_parent
@@ -339,13 +339,13 @@ void test_remove_at_internal_clears_child_parent() {
 
     parent.remove_at(1); // remove child_b; child_c swaps into index 1
 
-    assert(parent.count() == 2);
-    assert(child_b.parent() == nullptr);          // removed child's parent cleared
-    assert(parent.child_at(0).child == &child_a);
-    assert(parent.child_at(1).child == &child_c); // child_c now at index 1
-    assert(child_a.parent() == &parent);
-    assert(child_c.parent() == &parent);           // still owned by parent
-    assert((parent.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
+    TALUS_CHECK(parent.count() == 2);
+    TALUS_CHECK(child_b.parent() == nullptr);          // removed child's parent cleared
+    TALUS_CHECK(parent.child_at(0).child == &child_a);
+    TALUS_CHECK(parent.child_at(1).child == &child_c); // child_c now at index 1
+    TALUS_CHECK(child_a.parent() == &parent);
+    TALUS_CHECK(child_c.parent() == &parent);           // still owned by parent
+    TALUS_CHECK((parent.bounds() == Box{{0.0, 0.0}, {5.0, 5.0}}));
 }
 
 // Test: test_reset_clears_own_parent_pointer
@@ -357,17 +357,17 @@ void test_reset_clears_own_parent_pointer() {
     Node child;
 
     parent.append_child(Box{{0.0, 0.0}, {1.0, 1.0}}, &child);
-    assert(child.parent() == &parent);
+    TALUS_CHECK(child.parent() == &parent);
 
     child.reset_as_internal();
-    assert(child.parent() == nullptr);
+    TALUS_CHECK(child.parent() == nullptr);
 
     Node new_parent(false);
     new_parent.append_child(Box{{0.0, 0.0}, {1.0, 1.0}}, &child);
-    assert(child.parent() == &new_parent);
+    TALUS_CHECK(child.parent() == &new_parent);
 
     child.reset_as_leaf();
-    assert(child.parent() == nullptr);
+    TALUS_CHECK(child.parent() == nullptr);
 }
 
 // Test: test_leaf_values_span_supports_range_iteration
@@ -376,7 +376,7 @@ void test_leaf_values_span_supports_range_iteration() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
     Node node;
-    assert(node.values().empty());
+    TALUS_CHECK(node.values().empty());
 
     node.append_value(Box{{0.0, 0.0}, {1.0, 1.0}}, 10);
     node.append_value(Box{{2.0, 2.0}, {3.0, 3.0}}, 20);
@@ -386,8 +386,8 @@ void test_leaf_values_span_supports_range_iteration() {
     for (auto& entry : node.values()) {
         sum += entry.value;
     }
-    assert(sum == 60);
-    assert(node.values().size() == 3);
+    TALUS_CHECK(sum == 60);
+    TALUS_CHECK(node.values().size() == 3);
 
     // const path
     const Node& cnode = node;
@@ -395,7 +395,7 @@ void test_leaf_values_span_supports_range_iteration() {
     for (const auto& entry : cnode.values()) {
         csum += entry.value;
     }
-    assert(csum == 60);
+    TALUS_CHECK(csum == 60);
 }
 
 // Test: test_internal_children_span_supports_range_iteration
@@ -404,7 +404,7 @@ void test_internal_children_span_supports_range_iteration() {
     using Node = talus::detail::RTreeNode<int, double, 4>;
 
     Node parent(false);
-    assert(parent.children().empty());
+    TALUS_CHECK(parent.children().empty());
 
     Node a, b, c;
     parent.append_child(Box{{0.0, 0.0}, {1.0, 1.0}}, &a);
@@ -415,10 +415,10 @@ void test_internal_children_span_supports_range_iteration() {
     for (auto& entry : parent.children()) {
         collected.push_back(entry.child);
     }
-    assert(collected.size() == 3);
-    assert(collected[0] == &a);
-    assert(collected[1] == &b);
-    assert(collected[2] == &c);
+    TALUS_CHECK(collected.size() == 3);
+    TALUS_CHECK(collected[0] == &a);
+    TALUS_CHECK(collected[1] == &b);
+    TALUS_CHECK(collected[2] == &c);
 }
 
 // Test: test_pool_allocator_returns_aligned_nodes
@@ -431,10 +431,10 @@ void test_pool_allocator_returns_aligned_nodes() {
     Node* first = pool.create();
     Node* second = pool.create(false);
 
-    assert(is_aligned(first, 64));
-    assert(is_aligned(second, 64));
-    assert(first->is_leaf());
-    assert(second->is_internal());
+    TALUS_CHECK(is_aligned(first, 64));
+    TALUS_CHECK(is_aligned(second, 64));
+    TALUS_CHECK(first->is_leaf());
+    TALUS_CHECK(second->is_internal());
 }
 
 } // namespace

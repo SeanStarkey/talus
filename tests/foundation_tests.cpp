@@ -1,6 +1,6 @@
 #include <talus/talus.hpp>
 
-#include <cassert>
+#include "test_check.hpp"
 #include <cmath>
 
 namespace {
@@ -197,7 +197,7 @@ void test_geometry() {
 
     // ── sq_distance / distance ────────────────────────────────────────────────
     static_assert(talus::sq_distance(Point<double>{0.0, 0.0}, Point<double>{3.0, 4.0}) == 25.0);
-    assert(std::abs(talus::distance(Point<double>{0.0, 0.0}, Point<double>{3.0, 4.0}) - 5.0) < 1e-12);
+    TALUS_CHECK(std::abs(talus::distance(Point<double>{0.0, 0.0}, Point<double>{3.0, 4.0}) - 5.0) < 1e-12);
 }
 
 // Test: test_concepts
