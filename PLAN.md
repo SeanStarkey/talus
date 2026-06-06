@@ -133,6 +133,7 @@ After correctness is established:
   `.lat/.lon` point data, and bounded geometries.
 - Completed: add example JSON import data for point, lat/lon, box, and segment
   geometries.
+- Completed: add Colorado 14ers lat/lon sample JSON data for the driver.
 - Add examples for custom coordinate extractors.
 - Add benchmarks for insertion, rectangular search, nearest neighbor, and bulk loading.
 

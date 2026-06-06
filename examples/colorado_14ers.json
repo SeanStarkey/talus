@@ -1,0 +1,410 @@
+{
+  "geometries": [
+    {
+      "type": "latlon",
+      "name": "Mount Elbert",
+      "category": "colorado 14er summit",
+      "lat": 39.1178,
+      "lon": -106.4454
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Massive",
+      "category": "colorado 14er summit",
+      "lat": 39.1875,
+      "lon": -106.4757
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Harvard",
+      "category": "colorado 14er summit",
+      "lat": 38.9244,
+      "lon": -106.3207
+    },
+    {
+      "type": "latlon",
+      "name": "Blanca Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.5775,
+      "lon": -105.4856
+    },
+    {
+      "type": "latlon",
+      "name": "La Plata Peak",
+      "category": "colorado 14er summit",
+      "lat": 39.0294,
+      "lon": -106.4729
+    },
+    {
+      "type": "latlon",
+      "name": "Uncompahgre Peak",
+      "category": "colorado 14er summit",
+      "lat": 38.0717,
+      "lon": -107.4621
+    },
+    {
+      "type": "latlon",
+      "name": "Crestone Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.9669,
+      "lon": -105.5855
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Lincoln",
+      "category": "colorado 14er summit",
+      "lat": 39.3515,
+      "lon": -106.1116
+    },
+    {
+      "type": "latlon",
+      "name": "Castle Peak",
+      "category": "colorado 14er summit",
+      "lat": 39.0097,
+      "lon": -106.8614
+    },
+    {
+      "type": "latlon",
+      "name": "Grays Peak",
+      "category": "colorado 14er summit",
+      "lat": 39.6339,
+      "lon": -105.8176
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Antero",
+      "category": "colorado 14er summit",
+      "lat": 38.6741,
+      "lon": -106.2462
+    },
+    {
+      "type": "latlon",
+      "name": "Torreys Peak",
+      "category": "colorado 14er summit",
+      "lat": 39.6428,
+      "lon": -105.8212
+    },
+    {
+      "type": "latlon",
+      "name": "Quandary Peak",
+      "category": "colorado 14er summit",
+      "lat": 39.3973,
+      "lon": -106.1064
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Blue Sky",
+      "category": "colorado 14er summit",
+      "lat": 39.5883,
+      "lon": -105.6438
+    },
+    {
+      "type": "latlon",
+      "name": "Longs Peak",
+      "category": "colorado 14er summit",
+      "lat": 40.2550,
+      "lon": -105.6151
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Wilson",
+      "category": "colorado 14er summit",
+      "lat": 37.8391,
+      "lon": -107.9916
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Shavano",
+      "category": "colorado 14er summit",
+      "lat": 38.6192,
+      "lon": -106.2393
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Princeton",
+      "category": "colorado 14er summit",
+      "lat": 38.7492,
+      "lon": -106.2424
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Belford",
+      "category": "colorado 14er summit",
+      "lat": 38.9607,
+      "lon": -106.3607
+    },
+    {
+      "type": "latlon",
+      "name": "Crestone Needle",
+      "category": "colorado 14er summit",
+      "lat": 37.9647,
+      "lon": -105.5766
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Yale",
+      "category": "colorado 14er summit",
+      "lat": 38.8442,
+      "lon": -106.3138
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Bross",
+      "category": "colorado 14er summit",
+      "lat": 39.3354,
+      "lon": -106.1077
+    },
+    {
+      "type": "latlon",
+      "name": "Kit Carson Mountain",
+      "category": "colorado 14er summit",
+      "lat": 37.9797,
+      "lon": -105.6026
+    },
+    {
+      "type": "latlon",
+      "name": "Maroon Peak",
+      "category": "colorado 14er summit",
+      "lat": 39.0708,
+      "lon": -106.9890
+    },
+    {
+      "type": "latlon",
+      "name": "Tabeguache Peak",
+      "category": "colorado 14er summit",
+      "lat": 38.6255,
+      "lon": -106.2509
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Oxford",
+      "category": "colorado 14er summit",
+      "lat": 38.9648,
+      "lon": -106.3388
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Sneffels",
+      "category": "colorado 14er summit",
+      "lat": 38.0038,
+      "lon": -107.7923
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Democrat",
+      "category": "colorado 14er summit",
+      "lat": 39.3396,
+      "lon": -106.1400
+    },
+    {
+      "type": "latlon",
+      "name": "Capitol Peak",
+      "category": "colorado 14er summit",
+      "lat": 39.1503,
+      "lon": -107.0829
+    },
+    {
+      "type": "latlon",
+      "name": "Pikes Peak",
+      "category": "colorado 14er summit",
+      "lat": 38.8405,
+      "lon": -105.0442
+    },
+    {
+      "type": "latlon",
+      "name": "Snowmass Mountain",
+      "category": "colorado 14er summit",
+      "lat": 39.1188,
+      "lon": -107.0665
+    },
+    {
+      "type": "latlon",
+      "name": "Windom Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.6212,
+      "lon": -107.5919
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Eolus",
+      "category": "colorado 14er summit",
+      "lat": 37.6218,
+      "lon": -107.6227
+    },
+    {
+      "type": "latlon",
+      "name": "Challenger Point",
+      "category": "colorado 14er summit",
+      "lat": 37.9804,
+      "lon": -105.6066
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Columbia",
+      "category": "colorado 14er summit",
+      "lat": 38.9039,
+      "lon": -106.2975
+    },
+    {
+      "type": "latlon",
+      "name": "Missouri Mountain",
+      "category": "colorado 14er summit",
+      "lat": 38.9476,
+      "lon": -106.3785
+    },
+    {
+      "type": "latlon",
+      "name": "Humboldt Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.9762,
+      "lon": -105.5552
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Bierstadt",
+      "category": "colorado 14er summit",
+      "lat": 39.5826,
+      "lon": -105.6688
+    },
+    {
+      "type": "latlon",
+      "name": "Sunlight Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.6274,
+      "lon": -107.5959
+    },
+    {
+      "type": "latlon",
+      "name": "Handies Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.9130,
+      "lon": -107.5044
+    },
+    {
+      "type": "latlon",
+      "name": "Culebra Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.1224,
+      "lon": -105.1858
+    },
+    {
+      "type": "latlon",
+      "name": "Ellingwood Point",
+      "category": "colorado 14er summit",
+      "lat": 37.5826,
+      "lon": -105.4927
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Lindsey",
+      "category": "colorado 14er summit",
+      "lat": 37.5837,
+      "lon": -105.4449
+    },
+    {
+      "type": "latlon",
+      "name": "Little Bear Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.5666,
+      "lon": -105.4972
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Sherman",
+      "category": "colorado 14er summit",
+      "lat": 39.2250,
+      "lon": -106.1699
+    },
+    {
+      "type": "latlon",
+      "name": "Redcloud Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.9410,
+      "lon": -107.4219
+    },
+    {
+      "type": "latlon",
+      "name": "Pyramid Peak",
+      "category": "colorado 14er summit",
+      "lat": 39.0717,
+      "lon": -106.9502
+    },
+    {
+      "type": "latlon",
+      "name": "Wilson Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.8603,
+      "lon": -107.9847
+    },
+    {
+      "type": "latlon",
+      "name": "San Luis Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.9868,
+      "lon": -106.9313
+    },
+    {
+      "type": "latlon",
+      "name": "Wetterhorn Peak",
+      "category": "colorado 14er summit",
+      "lat": 38.0607,
+      "lon": -107.5109
+    },
+    {
+      "type": "latlon",
+      "name": "Mount of the Holy Cross",
+      "category": "colorado 14er summit",
+      "lat": 39.4668,
+      "lon": -106.4817
+    },
+    {
+      "type": "latlon",
+      "name": "Huron Peak",
+      "category": "colorado 14er summit",
+      "lat": 38.9455,
+      "lon": -106.4381
+    },
+    {
+      "type": "latlon",
+      "name": "Sunshine Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.9228,
+      "lon": -107.4256
+    },
+    {
+      "type": "latlon",
+      "name": "Mount Cameron",
+      "category": "colorado 14er summit",
+      "lat": 39.3469,
+      "lon": -106.1180
+    },
+    {
+      "type": "latlon",
+      "name": "Conundrum Peak",
+      "category": "colorado 14er summit",
+      "lat": 39.01437,
+      "lon": -106.8638
+    },
+    {
+      "type": "latlon",
+      "name": "El Diente Peak",
+      "category": "colorado 14er summit",
+      "lat": 37.8394,
+      "lon": -108.0053
+    },
+    {
+      "type": "latlon",
+      "name": "North Eolus",
+      "category": "colorado 14er summit",
+      "lat": 37.62523,
+      "lon": -107.62115
+    },
+    {
+      "type": "latlon",
+      "name": "North Maroon Peak",
+      "category": "colorado 14er summit",
+      "lat": 39.0760,
+      "lon": -106.9871
+    }
+  ]
+}
