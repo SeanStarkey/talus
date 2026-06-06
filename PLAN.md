@@ -8,6 +8,7 @@ work. The implemented project surface is:
 - `include/talus/geometry.hpp`
 - `include/talus/concepts.hpp`
 - `include/talus/talus.hpp`
+- `include/talus/rtree.hpp`
 - `include/talus/detail/pool_alloc.hpp`
 - `include/talus/detail/node.hpp`
 - `include/talus/detail/algorithms.hpp`
@@ -17,10 +18,10 @@ The top-level CMake project now provides a `clean-cmake` target that removes
 the configured build tree's generated CMake/build-system files while refusing
 to operate on in-source builds.
 
-The R-tree implementation has started with storage primitives and the first
-algorithm slice. Node layout, overlap-aware ChooseLeaf, non-splitting Insert,
-the low-level SplitNode primitive, AdjustTree split propagation, and Search are
-in place.
+The R-tree implementation has storage primitives, the first algorithm slice, and
+the minimal public wrapper. Node layout, overlap-aware ChooseLeaf, non-splitting
+Insert, the low-level SplitNode primitive, AdjustTree split propagation, Search,
+and public `SpatialIndex` insert/search are in place.
 
 The following scaffolding directories currently contain placeholder CMake files:
 
@@ -28,7 +29,7 @@ The following scaffolding directories currently contain placeholder CMake files:
 
 `examples/` now includes `talus_rstar_driver`, a small executable that exercises
 the implemented R*-tree core through the internal node, pool, insert-with-split,
-and search APIs while the public `SpatialIndex` wrapper is still pending.
+and search APIs.
 
 The concept layer now supports scalar-aware bounding-box extraction and gives `.bounds()` precedence over point fields when a type satisfies both.
 
@@ -38,9 +39,9 @@ their purpose and ownership boundaries.
 Public structures, concepts, helpers, and storage methods now include
 Doxygen-style comments for generated API documentation.
 
-The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, plus focused pool allocator and R-tree node storage tests.
+The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, focused pool allocator and R-tree node storage tests, R-tree algorithm tests, and public `SpatialIndex` oracle tests.
 
-CMake configure, build, and `ctest` pass with the current foundation, pool allocator, and node storage test targets.
+CMake configure, build, and `ctest` pass with the current foundation, pool allocator, node storage, algorithm, and public R-tree test targets.
 
 ## Recommended Work Plan
 
@@ -94,12 +95,13 @@ next one.
 root node and pool, and exposes the user-facing `SpatialIndex<T, Scalar,
 MaxChildren>` API. Implement only after the algorithms in step 4 are correct.
 
-Start with:
+Completed:
   - `insert`
   - `size`
   - `empty`
   - `clear`
   - rectangular `search`
+  - `within` alias for the documented rectangular query spelling
 
 Keep this phase intentionally narrow. Do not expand the public wrapper to
 nearest neighbor, delete, radius search, or bulk load until the minimal
@@ -107,10 +109,10 @@ insert/search API is covered by oracle tests.
 
 ### 6. Add the Brute-force Oracle
 
-- Add `tests/brute_force.hpp`.
-- Compare public `SpatialIndex` rectangular search results against brute force
+- Completed: add `tests/brute_force.hpp`.
+- Completed: compare public `SpatialIndex` rectangular search results against brute force
   for deterministic fixtures.
-- Add randomized public API search tests after deterministic tests are stable.
+- Completed: add randomized public API search tests after deterministic tests are stable.
 - Scale randomized tests gradually before attempting the documented large stress tests.
 
 ### 7. Implement Remaining R*-tree Algorithms
@@ -135,8 +137,7 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Continue with the minimal public R-tree wrapper in `include/talus/rtree.hpp`.
-Expose `SpatialIndex<T, Scalar, MaxChildren>` with `insert`, `size`, `empty`,
-`clear`, and rectangular `search`, then add `tests/brute_force.hpp` so
-deterministic and randomized search tests can compare the public API against the
-oracle.
+Continue with the remaining R*-tree algorithms after the public insert/search
+API is stable. Start with nearest-neighbor support in `include/talus/detail/algorithms.hpp`,
+then expose the matching public wrapper method and compare results against the
+brute-force oracle.

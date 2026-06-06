@@ -29,3 +29,11 @@ add_executable(talus_algorithms_tests
 target_link_libraries(talus_algorithms_tests PRIVATE talus::talus)
 
 add_test(NAME talus_algorithms_tests COMMAND talus_algorithms_tests)
+
+add_executable(talus_rtree_tests
+    rtree_tests.cpp
+)
+
+target_link_libraries(talus_rtree_tests PRIVATE talus::talus)
+
+add_test(NAME talus_rtree_tests COMMAND talus_rtree_tests)
