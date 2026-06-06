@@ -7,6 +7,12 @@ A zero-dependency, header-only C++20 spatial index library. Drop it in, include 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 
+> **Status: early development (v0.1.0, in progress).** Working today: automatic
+> type detection, `insert`, and rectangle (`within`) queries, validated against a
+> brute-force oracle. Nearest-neighbor, radius search, delete, bulk loading, and the
+> k-d tree are **planned, not yet implemented** — see the [Roadmap](#roadmap).
+> [PLAN.md](PLAN.md) is the source of truth for what is and isn't done.
+
 ---
 
 ## Quick start
@@ -26,11 +32,10 @@ int main() {
     index.insert({-104.81, 38.84, "Pizza on Pikes"});
     index.insert({-104.79, 38.81, "Tacos on Tijeras"});
 
-    // Range query
+    // Rectangle (range) query — returns std::vector<Restaurant>
     auto results = index.within({{-104.85, 38.80}, {-104.78, 38.88}});
 
-    // Nearest neighbor
-    auto nearest = index.nearest({-104.82, 38.83}, /*k=*/2);
+    // Nearest-neighbor and radius search are on the roadmap (not yet available).
 }
 ```
 
@@ -44,11 +49,15 @@ int main() {
 | Header-only | ✓ | ✓ | ✓ |
 | No adapter boilerplate | ✓ | ✗ | ✗ |
 | Range queries | ✓ | ✓ | ✗ |
-| Nearest neighbor | ✓ | ✓ | ✓ |
-| Radius search | ✓ | ✓ | partial |
+| Nearest neighbor | ◐ | ✓ | ✓ |
+| Radius search | ◐ | ✓ | partial |
 | R*-tree | ✓ | ✓ | ✗ |
-| k-d tree | ✓ | ✗ | ✓ |
+| k-d tree | ◐ | ✗ | ✓ |
 | C++20 concepts API | ✓ | ✗ | ✗ |
+
+**Talus column: ✓ available now · ◐ planned ([Roadmap](#roadmap)).** Competitor
+columns describe their released features. The R\*-tree ships with insert and range
+query today; forced reinsertion and delete are still on the roadmap.
 
 ---
 
@@ -60,7 +69,7 @@ int main() {
 include(FetchContent)
 FetchContent_Declare(talus
     GIT_REPOSITORY https://github.com/SeanStarkey/talus
-    GIT_TAG        v0.1.0)
+    GIT_TAG        main)  # no tagged release yet; v0.1.0 is the first planned tag
 FetchContent_MakeAvailable(talus)
 
 target_link_libraries(my_project PRIVATE talus::talus)
@@ -104,45 +113,49 @@ struct Building {
 talus::SpatialIndex<Building> index;
 ```
 
-**Exotic types — explicit extractor**
-```cpp
-struct Tile { float coords[4]; };
+**Exotic types — explicit extractor** *(planned, not yet available)*
 
-talus::SpatialIndex<Tile, double, 9, decltype(extractor)> index{
-    [](const Tile& t) {
-        return talus::BoundingBox{
-            talus::Point{(double)t.coords[0], (double)t.coords[1]},
-            talus::Point{(double)t.coords[2], (double)t.coords[3]}};
-    }
-};
-```
+A `CoordExtractor` concept exists, but passing a custom extractor to
+`SpatialIndex` is still on the roadmap. Until then, give your type a `.bounds()`
+method (above) to index types that lack `.x/.y` or `.lat/.lon` fields.
 
 ---
 
 ## API reference
 
+### Available now
+
 ```cpp
 talus::SpatialIndex<T, Scalar = double, MaxChildren = 9>
 
-// Insertion
-void insert(const T& value);
+// Insertion (one value at a time)
+void insert(const T& value);   // requires copy-constructible T
 void insert(T&& value);
-template<std::ranges::input_range R> void insert(R&& range);  // bulk — uses STR load
-
-// Removal
-bool remove(const T& value);
 
 // State
 std::size_t size() const noexcept;
 bool        empty() const noexcept;
 void        clear() noexcept;
 
-// Queries — return std::vector<T>
-std::vector<T> within(BoundingBox<Scalar> query) const;
+// Rectangle query — returns std::vector<T> (requires copy-constructible T)
+std::vector<T> search(BoundingBox<Scalar> query) const;
+std::vector<T> within(BoundingBox<Scalar> query) const;  // alias for search
+```
+
+### Planned (not yet implemented)
+
+```cpp
+// Bulk insertion via STR bulk load
+template<std::ranges::input_range R> void insert(R&& range);
+
+// Removal (delete + forced reinsertion)
+bool remove(const T& value);
+
+// Nearest-neighbor and radius queries
 std::vector<T> nearest(Point<Scalar> query, std::size_t k = 1) const;
 std::vector<T> within_radius(Point<Scalar> query, Scalar radius) const;
 
-// Visitor variants — no allocation, for hot paths
+// Allocation-free visitor variants, for hot paths
 template<std::invocable<const T&> Fn>
 void for_each_within(BoundingBox<Scalar> query, Fn&& fn) const;
 
@@ -157,12 +170,15 @@ void for_each_nearest(Point<Scalar> query, std::size_t k, Fn&& fn) const;
 Requires CMake 3.20+ and a C++20-capable compiler (GCC 12+, Clang 15+, MSVC 2022, Apple Clang 15+).
 
 ```bash
-cmake -B build
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Tests fetch [Catch2](https://github.com/catchorg/Catch2) automatically. Every operation is validated against a brute-force linear-scan oracle.
+Tests are built by default at the top level. They are plain executables (no
+external test framework yet) whose checks are `assert`-based, so build them with
+assertions enabled (a `Debug` build, as above). Every index operation is validated
+against a brute-force linear-scan oracle.
 
 ## Example driver
 
@@ -189,7 +205,7 @@ To run it with the sample JSON import file:
 
 - [x] Geometry primitives (`Point`, `BoundingBox`, `Segment`)
 - [x] C++20 concept-based type detection
-- [ ] R*-tree core (insert, range query)
+- [x] R*-tree core (insert, range query)
 - [ ] Nearest neighbor and radius search
 - [ ] Delete and reinsertion
 - [ ] STR bulk loading
