@@ -116,9 +116,14 @@ public:
     /// Nodes are address-stable pool objects and cannot be moved.
     RTreeNode& operator=(RTreeNode&&) = delete;
 
-    /// @brief Destroys all live entries held by the node.
+    /// @brief Destroys this node's own live entries.
+    ///
+    /// Only entries owned by this node are destroyed; child nodes are never
+    /// touched. Child lifetimes are owned by the pool, and a node may be
+    /// destroyed after its children, so dereferencing a child here would be a
+    /// use-after-free. Live-tree reuse that must detach children uses `clear()`.
     ~RTreeNode() {
-        clear();
+        destroy_entries();
     }
 
     /// @brief Returns true when the node stores value entries.
@@ -347,19 +352,19 @@ public:
         bounds_ = combined;
     }
 
-    /// @brief Destroys all entries and resets count and bounds.
+    /// @brief Destroys all entries, detaches child nodes, and resets count and bounds.
+    ///
+    /// Intended for live-tree reuse (`reset_as_*`, split/adjust surgery) where the
+    /// child nodes are still alive. The destructor deliberately does not call this
+    /// — see `~RTreeNode()`.
     void clear() noexcept(std::is_nothrow_destructible_v<T>) {
-        if (is_leaf_) {
-            for (std::size_t i = 0; i < count_; ++i) {
-                std::destroy_at(value_entry(i));
-            }
-        } else {
+        if (is_internal()) {
             for (std::size_t i = 0; i < count_; ++i) {
                 child_entry(i)->child->set_parent(nullptr);
-                std::destroy_at(child_entry(i));
             }
         }
 
+        destroy_entries();
         count_ = 0;
         bounds_ = {};
     }
@@ -409,6 +414,22 @@ private:
 
     constexpr void append_bounds(BoundingBox<Scalar> entry_bounds) noexcept {
         bounds_ = count_ == 0 ? entry_bounds : bounds_.expand(entry_bounds);
+    }
+
+    /// @brief Destroys this node's own entries without dereferencing child nodes.
+    ///
+    /// Leaf value entries run `~T`; internal child entries are trivially
+    /// destructible. Safe to call from the destructor regardless of child lifetime.
+    void destroy_entries() noexcept(std::is_nothrow_destructible_v<T>) {
+        if (is_leaf_) {
+            for (std::size_t i = 0; i < count_; ++i) {
+                std::destroy_at(value_entry(i));
+            }
+        } else {
+            for (std::size_t i = 0; i < count_; ++i) {
+                std::destroy_at(child_entry(i));
+            }
+        }
     }
 
     bool is_leaf_ = true;
