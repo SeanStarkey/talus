@@ -598,8 +598,6 @@ RTreeAdjustedInsertResult<RTreeNode<T, Scalar, MaxChildren>> insert_with_split(
     PoolAllocator<RTreeNode<T, Scalar, MaxChildren>, BlockSize>& pool,
     BoundingBox<Scalar> entry_bounds,
     U&& value) {
-    using node_type = RTreeNode<T, Scalar, MaxChildren>;
-
     auto insert_result = insert(root, entry_bounds, std::forward<U>(value));
     if (!insert_result.inserted) {
         return {&root, false, 0, false};

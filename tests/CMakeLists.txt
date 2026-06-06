@@ -1,39 +1,16 @@
-add_executable(talus_foundation_tests
-    foundation_tests.cpp
+# Each test is a standalone executable validated via ctest. They link the
+# internal `talus_dev_options` target so warnings (and sanitizers, when enabled)
+# apply to the test code and the library headers it pulls in.
+set(_talus_tests
+    foundation_tests
+    pool_alloc_tests
+    node_tests
+    algorithms_tests
+    rtree_tests
 )
 
-target_link_libraries(talus_foundation_tests PRIVATE talus::talus)
-
-add_test(NAME talus_foundation_tests COMMAND talus_foundation_tests)
-
-add_executable(talus_pool_alloc_tests
-    pool_alloc_tests.cpp
-)
-
-target_link_libraries(talus_pool_alloc_tests PRIVATE talus::talus)
-
-add_test(NAME talus_pool_alloc_tests COMMAND talus_pool_alloc_tests)
-
-add_executable(talus_node_tests
-    node_tests.cpp
-)
-
-target_link_libraries(talus_node_tests PRIVATE talus::talus)
-
-add_test(NAME talus_node_tests COMMAND talus_node_tests)
-
-add_executable(talus_algorithms_tests
-    algorithms_tests.cpp
-)
-
-target_link_libraries(talus_algorithms_tests PRIVATE talus::talus)
-
-add_test(NAME talus_algorithms_tests COMMAND talus_algorithms_tests)
-
-add_executable(talus_rtree_tests
-    rtree_tests.cpp
-)
-
-target_link_libraries(talus_rtree_tests PRIVATE talus::talus)
-
-add_test(NAME talus_rtree_tests COMMAND talus_rtree_tests)
+foreach(_test IN LISTS _talus_tests)
+    add_executable(talus_${_test} ${_test}.cpp)
+    target_link_libraries(talus_${_test} PRIVATE talus::talus talus_dev_options)
+    add_test(NAME talus_${_test} COMMAND talus_${_test})
+endforeach()

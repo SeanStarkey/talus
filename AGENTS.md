@@ -21,7 +21,13 @@ ctest --test-dir build --output-on-failure
 
 # With benchmarks or examples
 cmake -B build -DTALUS_BUILD_BENCHMARKS=ON -DTALUS_BUILD_EXAMPLES=ON
+
+# Warnings-as-errors (CI uses this) and sanitizers (ASan + UBSan)
+cmake -B build -DTALUS_WARNINGS_AS_ERRORS=ON
+cmake -B build-asan -DTALUS_ENABLE_SANITIZERS=ON
 ```
+
+Talus's own targets (tests/examples/benchmarks) build with `-Wall -Wextra -Wpedantic` by default via the internal `talus_dev_options` interface target; these flags never reach the public `talus` interface. `.github/workflows/ci.yml` builds and tests with GCC and Clang under `-Werror` plus a sanitizer job. Keep the tree warning-clean under `-Werror`.
 
 No external dependencies are needed to build the library itself. Tests are plain executables with no external framework — they check invariants with a local `TALUS_CHECK` macro (`tests/test_check.hpp`) that always runs, so it is not stripped by `NDEBUG` and the suite stays meaningful in `Release` builds — and `benchmarks/` is an empty placeholder, so nothing is fetched today. If a test framework (e.g. Catch2) or Google Benchmark is introduced later, it will come in via CMake FetchContent and only for `tests/` / `benchmarks/`.
 

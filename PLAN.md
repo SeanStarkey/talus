@@ -52,6 +52,7 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 - Completed: add `include/talus/talus.hpp` that includes all current public headers.
 - Completed: add basic smoke tests for `geometry.hpp`, `concepts.hpp`, and the umbrella include.
 - Completed: make test checks non-vacuous under `NDEBUG`/Release via a local always-on `TALUS_CHECK` macro (`tests/test_check.hpp`) in place of `assert`.
+- Completed: build Talus's own targets with `-Wall -Wextra -Wpedantic` (internal `talus_dev_options` target), add opt-in `TALUS_WARNINGS_AS_ERRORS` and `TALUS_ENABLE_SANITIZERS` (ASan+UBSan), and a GitHub Actions CI lane (gcc/clang `-Werror` plus a sanitizer job).
 
 ### 2. Harden Foundation APIs
 

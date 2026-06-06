@@ -7,7 +7,6 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
-#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -306,17 +305,6 @@ private:
 [[nodiscard]] double required_number(const JsonObject& object, std::string_view key) {
     const Json* value = find_member(object, key);
     if (value == nullptr || !std::holds_alternative<double>(value->value)) {
-        throw std::runtime_error("expected numeric field '" + std::string(key) + "'");
-    }
-    return std::get<double>(value->value);
-}
-
-[[nodiscard]] std::optional<double> optional_number(const JsonObject& object, std::string_view key) {
-    const Json* value = find_member(object, key);
-    if (value == nullptr) {
-        return std::nullopt;
-    }
-    if (!std::holds_alternative<double>(value->value)) {
         throw std::runtime_error("expected numeric field '" + std::string(key) + "'");
     }
     return std::get<double>(value->value);

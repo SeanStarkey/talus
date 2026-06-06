@@ -4,6 +4,7 @@
 
 A zero-dependency, header-only C++20 spatial index library. Drop it in, include one header, and start querying — no adapter traits, no build system integration, no Boost required.
 
+[![CI](https://github.com/SeanStarkey/talus/actions/workflows/ci.yml/badge.svg)](https://github.com/SeanStarkey/talus/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 
@@ -180,6 +181,19 @@ external test framework) whose checks always run — they use a local `TALUS_CHE
 macro that is not stripped by `NDEBUG`, so the suite is meaningful in any build
 configuration, including `Release`. Every index operation is validated against a
 brute-force linear-scan oracle.
+
+Talus's own targets build with `-Wall -Wextra -Wpedantic` by default (`/W4` on
+MSVC); add `-DTALUS_WARNINGS_AS_ERRORS=ON` to make warnings fatal. To run the
+suite under AddressSanitizer + UndefinedBehaviorSanitizer:
+
+```bash
+cmake -B build-asan -DTALUS_ENABLE_SANITIZERS=ON
+cmake --build build-asan
+ctest --test-dir build-asan --output-on-failure
+```
+
+CI (GitHub Actions) builds and tests with GCC and Clang under `-Werror`, and runs
+the sanitizer suite, on every push and pull request.
 
 ## Example driver
 
