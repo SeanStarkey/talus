@@ -1,0 +1,40 @@
+{
+  "geometries": [
+    {
+      "type": "point",
+      "name": "Museum of Contemporary Art",
+      "category": "museum",
+      "x": -104.9952,
+      "y": 39.7420
+    },
+    {
+      "type": "latlon",
+      "name": "Denver Museum of Nature and Science",
+      "category": "museum",
+      "lat": 39.7475,
+      "lon": -104.9518
+    },
+    {
+      "type": "box",
+      "name": "Downtown Search Area",
+      "category": "query fixture",
+      "min_x": -105.0050,
+      "min_y": 39.7300,
+      "max_x": -104.9800,
+      "max_y": 39.7550
+    },
+    {
+      "type": "segment",
+      "name": "Sample Trail Segment",
+      "category": "trail",
+      "start": {
+        "x": -105.0100,
+        "y": 39.7350
+      },
+      "end": {
+        "x": -104.9700,
+        "y": 39.7600
+      }
+    }
+  ]
+}

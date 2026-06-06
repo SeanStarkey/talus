@@ -1,2 +1,2 @@
-add_executable(talus_rstar_driver rstar_driver.cpp)
-target_link_libraries(talus_rstar_driver PRIVATE talus::talus)
+add_executable(talus_driver talus_driver.cpp)
+target_link_libraries(talus_driver PRIVATE talus::talus)

@@ -164,6 +164,25 @@ ctest --test-dir build --output-on-failure
 
 Tests fetch [Catch2](https://github.com/catchorg/Catch2) automatically. Every operation is validated against a brute-force linear-scan oracle.
 
+## Example driver
+
+Talus includes a small command-line driver that exercises the currently exposed
+public API. It loads seeded example geometries, can import additional JSON data,
+and lets you list records, run bounding-box searches, clear the index, and view
+the supported import format.
+
+```bash
+cmake -B build -DTALUS_BUILD_EXAMPLES=ON
+cmake --build build --target talus_driver
+./build/examples/talus_driver
+```
+
+To run it with the sample JSON import file:
+
+```bash
+./build/examples/talus_driver examples/sample_geometries.json
+```
+
 ---
 
 ## Roadmap
