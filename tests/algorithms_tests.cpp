@@ -989,6 +989,33 @@ void test_search_split_insert_tree_matches_deterministic_query() {
     TALUS_CHECK((matches == std::vector<int>{100, 101, 102}));
 }
 
+// Test: test_choose_leaf_uses_margin_when_area_is_degenerate
+// Verifies ChooseSubtree picks the spatially nearer leaf among collinear
+// children whose boxes have zero area. Both candidates are horizontal lines
+// (area 0) holding two entries, so overlap enlargement, area enlargement,
+// current area, and entry count all tie; only the margin-enlargement tie-breaker
+// distinguishes them, selecting the line that grows least to absorb the point.
+// Without the margin terms the choice would fall to the first child.
+void test_choose_leaf_uses_margin_when_area_is_degenerate() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root(false);
+    Node far_line;   // line [0,0]-[5,0]: margin must grow by 5 to reach (10,0)
+    Node near_line;  // line [8,0]-[9,0]: margin grows by only 1
+
+    far_line.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 1);
+    far_line.append_value(Box{{5.0, 0.0}, {5.0, 0.0}}, 2);
+    near_line.append_value(Box{{8.0, 0.0}, {8.0, 0.0}}, 3);
+    near_line.append_value(Box{{9.0, 0.0}, {9.0, 0.0}}, 4);
+
+    root.append_child(far_line.bounds(), &far_line);
+    root.append_child(near_line.bounds(), &near_line);
+
+    Node* chosen = talus::detail::choose_leaf(root, Box{{10.0, 0.0}, {10.0, 0.0}});
+
+    TALUS_CHECK(chosen == &near_line);
+}
+
 } // namespace
 
 int main() {
@@ -1004,6 +1031,7 @@ int main() {
     test_choose_leaf_returns_leaf_root_directly();
     test_choose_leaf_descends_through_internal_nodes();
     test_choose_leaf_uses_area_enlargement_at_internal_level();
+    test_choose_leaf_uses_margin_when_area_is_degenerate();
     test_insert_appends_to_root_leaf();
     test_insert_routes_to_child_and_refreshes_ancestor_bounds();
     test_insert_reports_overflow_without_splitting();

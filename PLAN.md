@@ -21,7 +21,10 @@ to operate on in-source builds.
 The R-tree implementation has storage primitives, the first algorithm slice, and
 the minimal public wrapper. Node layout, overlap-aware ChooseLeaf, non-splitting
 Insert, the low-level SplitNode primitive, AdjustTree split propagation, Search,
-and public `SpatialIndex` insert/search are in place.
+and public `SpatialIndex` insert/search are in place. ChooseSubtree and the
+split-index selection use a margin (half-perimeter) tie-breaker so point and
+axis-aligned data — where bounding boxes have zero area — are still ranked
+spatially instead of collapsing to the entry-count fallback.
 
 The following scaffolding directories currently contain placeholder CMake files:
 

@@ -70,6 +70,17 @@ struct BoundingBox {
         return (dx > Scalar{0} && dy > Scalar{0}) ? dx * dy : Scalar{0};
     }
 
+    /// @brief Returns the box margin: the half-perimeter (width + height).
+    ///
+    /// Unlike `area()`, the margin stays non-zero for a zero-area box that still
+    /// has extent — a horizontal or vertical line — so it discriminates the
+    /// point and axis-aligned data that `area()` collapses to zero. The R*-tree
+    /// uses it for split-axis choice and as a heuristic tie-breaker. It is
+    /// non-negative for any valid box (min <= max) and zero only for a point.
+    [[nodiscard]] constexpr Scalar margin() const noexcept {
+        return (max.x - min.x) + (max.y - min.y);
+    }
+
     /// @brief Returns the area growth required to enclose `other`.
     [[nodiscard]] constexpr Scalar enlarged_area(BoundingBox other) const noexcept {
         return expand(other).area() - area();

@@ -154,6 +154,14 @@ void test_geometry() {
     constexpr BoundingBox<double> pt_box{{2.0, 2.0}, {2.0, 2.0}};
     static_assert(pt_box.area() == 0.0);
 
+    // ── Margin (half-perimeter; non-zero for lines, unlike area) ──────────────
+    static_assert(box.margin() == 7.0);   // width 4 + height 3
+    static_assert(unit.margin() == 2.0);  // 1 + 1
+    // the key property: a line has zero area but a POSITIVE margin
+    static_assert(h_line.area() == 0.0 && h_line.margin() == 4.0);
+    // a single point has zero margin
+    static_assert(pt_box.margin() == 0.0);
+
     // ── Enlarged area ─────────────────────────────────────────────────────────
     static_assert(box.enlarged_area({{-1.0, 1.0}, {2.0, 5.0}}) == 13.0);
     // other already contained → no growth

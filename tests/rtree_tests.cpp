@@ -179,6 +179,38 @@ void test_spatial_index_randomized_search_matches_brute_force() {
     }
 }
 
+// Test: test_spatial_index_grid_data_search_matches_brute_force
+// Verifies correctness on grid-aligned (degenerate) data: integer coordinates in
+// a tiny range yield many collinear points and zero-area bounding boxes, which
+// exercises the margin-based ChooseSubtree and split tie-breakers heavily, and a
+// small fanout forces many splits. Results must still match the brute-force
+// oracle, guarding the heuristic against regressions on point/axis-aligned data.
+void test_spatial_index_grid_data_search_matches_brute_force() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    std::mt19937 rng(2024);
+    std::uniform_int_distribution<int> grid(0, 12);
+
+    for (int id = 0; id < 800; ++id) {
+        PointRecord point{static_cast<double>(grid(rng)), static_cast<double>(grid(rng)), id};
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    std::uniform_int_distribution<int> bound(-2, 14);
+    for (std::size_t i = 0; i < 200; ++i) {
+        const int x0 = bound(rng);
+        const int x1 = bound(rng);
+        const int y0 = bound(rng);
+        const int y1 = bound(rng);
+        const Box query{
+            {static_cast<double>(std::min(x0, x1)), static_cast<double>(std::min(y0, y1))},
+            {static_cast<double>(std::max(x0, x1)), static_cast<double>(std::max(y0, y1))}
+        };
+        assert_same_ids(index.search(query), oracle.search(query));
+    }
+}
+
 } // namespace
 
 int main() {
@@ -187,5 +219,6 @@ int main() {
     test_spatial_index_search_matches_bounded_geometry_oracle();
     test_spatial_index_accepts_move_inserted_values();
     test_spatial_index_randomized_search_matches_brute_force();
+    test_spatial_index_grid_data_search_matches_brute_force();
     return 0;
 }

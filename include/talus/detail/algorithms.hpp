@@ -11,6 +11,7 @@
 #include <array>
 #include <cstddef>
 #include <limits>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -149,10 +150,12 @@ void refresh_ancestor_bounds(RTreeNode<T, Scalar, MaxChildren>& node) noexcept {
 
 /// @brief Chooses the leaf that should receive an entry with `entry_bounds`.
 ///
-/// Descends with R*-tree ChooseSubtree semantics. When the children are leaves,
-/// minimum overlap enlargement is preferred first; otherwise minimum area
-/// enlargement is used. Ties are broken by smaller current area, then by fewer
-/// entries to keep behavior deterministic.
+/// Descends with R*-tree ChooseSubtree semantics. Children are ranked
+/// lexicographically by: overlap enlargement (leaf children only), area
+/// enlargement, margin enlargement, current area, current margin, then fewer
+/// entries. The margin terms break the ties that area leaves on point and
+/// axis-aligned data — where boxes have zero area and the area terms give no
+/// signal — and the final term keeps the choice deterministic.
 template<typename T, typename Scalar, std::size_t MaxChildren>
 [[nodiscard]] RTreeNode<T, Scalar, MaxChildren>* choose_leaf(
     RTreeNode<T, Scalar, MaxChildren>& root,
@@ -165,44 +168,41 @@ template<typename T, typename Scalar, std::size_t MaxChildren>
     while (node->is_internal()) {
         TALUS_ASSERT(!node->empty());
 
-        std::size_t best = 0;
-        Scalar best_overlap_enlargement = std::numeric_limits<Scalar>::infinity();
-        Scalar best_enlargement = std::numeric_limits<Scalar>::infinity();
-        Scalar best_area = std::numeric_limits<Scalar>::infinity();
-        std::size_t best_count = std::numeric_limits<std::size_t>::max();
         const auto& first_child = node->child_at(0);
         TALUS_ASSERT(first_child.child != nullptr);
+        // R*-tree ChooseSubtree minimizes overlap enlargement only when the
+        // children are leaves; at higher levels overlap is held at zero so the
+        // ranking starts from area enlargement.
         const bool choose_by_overlap = first_child.child->is_leaf();
+
+        // Lexicographic ranking key (smallest wins): overlap enlargement, area
+        // enlargement, margin enlargement, current area, current margin, entry
+        // count. The margin terms discriminate degenerate (zero-area) boxes.
+        using Key = std::tuple<Scalar, Scalar, Scalar, Scalar, Scalar, std::size_t>;
+        std::size_t best = 0;
+        Key best_key{};
 
         for (std::size_t i = 0; i < node->count(); ++i) {
             const auto& child = node->child_at(i);
             TALUS_ASSERT(child.child != nullptr);
             TALUS_ASSERT(child.child->is_leaf() == choose_by_overlap);
 
-            const BoundingBox<Scalar> expanded_bounds = child.bounds.expand(entry_bounds);
+            const BoundingBox<Scalar> expanded = child.bounds.expand(entry_bounds);
             const Scalar overlap_growth = choose_by_overlap
-                ? overlap_enlargement(*node, i, expanded_bounds)
+                ? overlap_enlargement(*node, i, expanded)
                 : Scalar{0};
-            const Scalar enlargement = child.bounds.enlarged_area(entry_bounds);
-            const Scalar area = child.bounds.area();
-            const std::size_t count = child.child->count();
+            const Key key{
+                overlap_growth,
+                expanded.area() - child.bounds.area(),
+                expanded.margin() - child.bounds.margin(),
+                child.bounds.area(),
+                child.bounds.margin(),
+                child.child->count(),
+            };
 
-            if ((choose_by_overlap && overlap_growth < best_overlap_enlargement)
-                || (choose_by_overlap && overlap_growth == best_overlap_enlargement
-                    && enlargement < best_enlargement)
-                || (choose_by_overlap && overlap_growth == best_overlap_enlargement
-                    && enlargement == best_enlargement && area < best_area)
-                || (choose_by_overlap && overlap_growth == best_overlap_enlargement
-                    && enlargement == best_enlargement && area == best_area && count < best_count)
-                || (!choose_by_overlap && enlargement < best_enlargement)
-                || (!choose_by_overlap && enlargement == best_enlargement && area < best_area)
-                || (!choose_by_overlap && enlargement == best_enlargement
-                    && area == best_area && count < best_count)) {
+            if (i == 0 || key < best_key) {
                 best = i;
-                best_overlap_enlargement = overlap_growth;
-                best_enlargement = enlargement;
-                best_area = area;
-                best_count = count;
+                best_key = key;
             }
         }
 
@@ -295,8 +295,7 @@ template<typename Scalar, std::size_t Capacity>
     for (std::size_t left_count = min_children; left_count <= count - min_children; ++left_count) {
         const BoundingBox<Scalar> left = ordered_bounds(order, bounds, 0, left_count);
         const BoundingBox<Scalar> right = ordered_bounds(order, bounds, left_count, count - left_count);
-        sum += (left.max.x - left.min.x) + (left.max.y - left.min.y);
-        sum += (right.max.x - right.min.x) + (right.max.y - right.min.y);
+        sum += left.margin() + right.margin();
     }
     return sum;
 }
@@ -330,6 +329,7 @@ template<typename Scalar, std::size_t Capacity>
 
     Scalar best_overlap = std::numeric_limits<Scalar>::infinity();
     Scalar best_area = std::numeric_limits<Scalar>::infinity();
+    Scalar best_total_margin = std::numeric_limits<Scalar>::infinity();
     for (bool use_max : {false, true}) {
         auto order = base_order;
         sort_order(order, bounds, count, best_axis, use_max);
@@ -339,14 +339,20 @@ template<typename Scalar, std::size_t Capacity>
             const BoundingBox<Scalar> right = ordered_bounds(order, bounds, left_count, count - left_count);
             const Scalar overlap = overlap_area(left, right);
             const Scalar area = left.area() + right.area();
+            // Margin breaks the ties overlap and area leave on point/axis-aligned
+            // groups, where both collapse to zero.
+            const Scalar total_margin = left.margin() + right.margin();
 
             if (overlap < best_overlap
                 || (overlap == best_overlap && area < best_area)
-                || (overlap == best_overlap && area == best_area && left_count > best.left_count)) {
+                || (overlap == best_overlap && area == best_area && total_margin < best_total_margin)
+                || (overlap == best_overlap && area == best_area && total_margin == best_total_margin
+                    && left_count > best.left_count)) {
                 best.order = order;
                 best.left_count = left_count;
                 best_overlap = overlap;
                 best_area = area;
+                best_total_margin = total_margin;
             }
         }
     }
