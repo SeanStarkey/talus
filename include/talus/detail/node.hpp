@@ -27,20 +27,65 @@ namespace talus::detail {
 template<typename T, typename Scalar = double, std::size_t MaxChildren = 9>
 class RTreeNode;
 
+/// @brief Byte threshold above which a leaf stores its value out of line.
+///
+/// A value no larger than this is stored inline in the leaf entry (the common
+/// case — points and compact records). A larger value is boxed behind a
+/// `unique_ptr`, so big payloads do not inflate node storage and — because leaf
+/// and child storage share a union — do not inflate internal nodes either.
+inline constexpr std::size_t rtree_inline_value_max_size = 128;
+
+/// @brief True when `T` is large enough to be boxed (stored out of line).
+template<typename T>
+inline constexpr bool rtree_boxes_value = sizeof(T) > rtree_inline_value_max_size;
+
 /// @brief Leaf-node entry pairing stored bounds with a user value.
-template<typename T, typename Scalar>
+///
+/// Two storage forms, selected automatically by `rtree_boxes_value<T>`: small
+/// values are stored inline (this primary template); large values are boxed
+/// behind a `unique_ptr` (the `Boxed == true` specialization below). Both forms
+/// expose the value through `value()` and pair it with routing `bounds`.
+template<typename T, typename Scalar, bool Boxed = rtree_boxes_value<T>>
 struct RTreeValueEntry {
     /// Bounds used to route and query this value.
     BoundingBox<Scalar> bounds{};
 
-    /// User object stored in the leaf entry.
-    T value;
+    /// User object stored inline in the leaf entry.
+    T stored;
 
     /// @brief Constructs the value in place with arbitrary constructor args.
     template<typename... Args>
     constexpr RTreeValueEntry(BoundingBox<Scalar> entry_bounds, Args&&... args)
         : bounds(entry_bounds),
-          value(std::forward<Args>(args)...) {}
+          stored(std::forward<Args>(args)...) {}
+
+    /// @brief Returns the stored value.
+    [[nodiscard]] constexpr T& value() noexcept { return stored; }
+
+    /// @brief Returns the stored value.
+    [[nodiscard]] constexpr const T& value() const noexcept { return stored; }
+};
+
+/// @brief Leaf-node entry whose value is boxed out of line for large `T`.
+template<typename T, typename Scalar>
+struct RTreeValueEntry<T, Scalar, true> {
+    /// Bounds used to route and query this value.
+    BoundingBox<Scalar> bounds{};
+
+    /// User object stored out of line so large payloads stay off the node.
+    std::unique_ptr<T> stored;
+
+    /// @brief Allocates and constructs the value with arbitrary constructor args.
+    template<typename... Args>
+    RTreeValueEntry(BoundingBox<Scalar> entry_bounds, Args&&... args)
+        : bounds(entry_bounds),
+          stored(std::make_unique<T>(std::forward<Args>(args)...)) {}
+
+    /// @brief Returns the stored value.
+    [[nodiscard]] T& value() noexcept { return *stored; }
+
+    /// @brief Returns the stored value.
+    [[nodiscard]] const T& value() const noexcept { return *stored; }
 };
 
 /// @brief Internal-node entry pairing stored bounds with a child node pointer.
@@ -206,6 +251,24 @@ public:
         append_bounds(entry_bounds);
         ++count_;
         return *entry;
+    }
+
+    /// @brief Relocates an existing leaf entry into this node by move.
+    ///
+    /// Moves the whole entry (bounds plus inline-or-boxed value), so a boxed
+    /// value transfers its pointer rather than re-allocating. Used by split and
+    /// root-growth redistribution.
+    value_entry_type& append_value_entry(value_entry_type&& entry) {
+        TALUS_ASSERT(is_leaf_);
+        TALUS_ASSERT(can_append_entry());
+        TALUS_ASSERT(entry.bounds.is_valid());
+
+        const BoundingBox<Scalar> entry_bounds = entry.bounds;
+        value_entry_type* slot = value_entry(count_);
+        std::construct_at(slot, std::move(entry));
+        append_bounds(entry_bounds);
+        ++count_;
+        return *slot;
     }
 
     /// @brief Appends an internal child and updates that child node's parent.

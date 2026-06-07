@@ -73,6 +73,8 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 - Completed: add and test pool reserve/preallocation for large builds.
 - Completed: harden pool reserve block-count calculation against size overflow.
 - Completed: harden pool destroy against interior pointers into valid blocks.
+- Completed: adaptive leaf value storage — values larger than `rtree_inline_value_max_size` (128 bytes) are boxed behind a `unique_ptr` so large payloads do not inflate node storage (or, via the leaf/child union, internal nodes); small values stay inline. Access via the entry `value()` accessor.
+- Future (benchmark-gated): expose the inline/boxed threshold (`rtree_inline_value_max_size`, currently fixed at 128 bytes) as a tuning parameter. Prefer a defaulted template parameter threaded `SpatialIndex` → `RTreeNode` → `RTreeValueEntry` so the auto default and existing code stay unchanged; a compile-time macro override is a lighter alternative. Hold until the section-8 benchmarks can show the threshold affects real workloads — don't add the knob before there is evidence to tune against.
 - Keep this layer independent from the higher-level tree algorithms where practical.
 - Preserve a serialization-friendly and large-dataset-friendly design: keep persistent formats pointer-free, keep pool block size tunable, and avoid public APIs that expose node addresses as durable IDs.
 

@@ -210,8 +210,8 @@ void test_insert_appends_to_root_leaf() {
     TALUS_CHECK(!result.needs_split());
     TALUS_CHECK(result.leaf == &root);
     TALUS_CHECK(root.count() == 1);
-    TALUS_CHECK(root.value_at(0).value.id == 7);
-    TALUS_CHECK(root.value_at(0).value.label == "root");
+    TALUS_CHECK(root.value_at(0).value().id == 7);
+    TALUS_CHECK(root.value_at(0).value().label == "root");
     TALUS_CHECK((root.bounds() == Box{{1.0, 2.0}, {1.0, 2.0}}));
 }
 
@@ -235,7 +235,7 @@ void test_insert_routes_to_child_and_refreshes_ancestor_bounds() {
     TALUS_CHECK(result.inserted);
     TALUS_CHECK(result.leaf == &right);
     TALUS_CHECK(right.count() == 2);
-    TALUS_CHECK(right.value_at(1).value == 3);
+    TALUS_CHECK(right.value_at(1).value() == 3);
     TALUS_CHECK((right.bounds() == Box{{10.0, 10.0}, {13.0, 13.0}}));
     TALUS_CHECK((root.child_at(1).bounds == right.bounds()));
     TALUS_CHECK((root.bounds() == Box{{0.0, 0.0}, {13.0, 13.0}}));
@@ -354,7 +354,7 @@ void test_choose_leaf_uses_area_enlargement_at_internal_level() {
 
 bool leaf_contains_value(const talus::detail::RTreeNode<int, double, 4>& node, int value) {
     for (const auto& entry : node.values()) {
-        if (entry.value == value) {
+        if (entry.value() == value) {
             return true;
         }
     }
@@ -575,10 +575,10 @@ void test_split_node_uses_deterministic_order_for_identical_bounds() {
     TALUS_CHECK(first.count() == second.count());
     TALUS_CHECK(first_sibling.count() == second_sibling.count());
     for (std::size_t i = 0; i < first.count(); ++i) {
-        TALUS_CHECK(first.value_at(i).value == second.value_at(i).value);
+        TALUS_CHECK(first.value_at(i).value() == second.value_at(i).value());
     }
     for (std::size_t i = 0; i < first_sibling.count(); ++i) {
-        TALUS_CHECK(first_sibling.value_at(i).value == second_sibling.value_at(i).value);
+        TALUS_CHECK(first_sibling.value_at(i).value() == second_sibling.value_at(i).value());
     }
 }
 
@@ -703,7 +703,7 @@ void collect_leaf_values(
     std::vector<int>& values) {
     if (node.is_leaf()) {
         for (const auto& entry : node.values()) {
-            values.push_back(entry.value);
+            values.push_back(entry.value());
         }
         return;
     }

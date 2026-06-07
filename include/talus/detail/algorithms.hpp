@@ -388,12 +388,10 @@ void split_leaf_node(
     sibling.set_parent(parent);
 
     for (std::size_t i = 0; i < choice.left_count; ++i) {
-        entry_type& entry = entries[choice.order[i]];
-        node.append_value(entry.bounds, std::move(entry.value));
+        node.append_value_entry(std::move(entries[choice.order[i]]));
     }
     for (std::size_t i = choice.left_count; i < count; ++i) {
-        entry_type& entry = entries[choice.order[i]];
-        sibling.append_value(entry.bounds, std::move(entry.value));
+        sibling.append_value_entry(std::move(entries[choice.order[i]]));
     }
 }
 
@@ -484,7 +482,7 @@ void move_entries(
         source.clear();
         destination.reset_as_leaf();
         for (auto& entry : entries) {
-            destination.append_value(entry.bounds, std::move(entry.value));
+            destination.append_value_entry(std::move(entry));
         }
     } else {
         using entry_type = typename node_type::child_entry_type;
@@ -637,7 +635,7 @@ std::size_t search_impl(
     if (node.is_leaf()) {
         for (const auto& entry : node.values()) {
             if (entry.bounds.intersects(query_bounds)) {
-                visitor(entry.value);
+                visitor(entry.value());
                 ++matches;
             }
         }

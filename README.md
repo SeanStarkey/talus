@@ -148,6 +148,12 @@ std::vector<T> within(BoundingBox<Scalar> query) const;  // alias for search
 `talus::invalid_geometry` (a `std::invalid_argument`) when a coordinate is NaN or
 infinite, or a box has `min > max`. A rejected `insert` leaves the index unchanged.
 
+Values are stored by value. Small values live inline in the tree nodes; values
+larger than 128 bytes are automatically stored out of line, so large payloads
+don't bloat the index's internal nodes. (For very large records, indexing a small
+key and keeping the payload in a side table is still the most cache-friendly
+pattern.)
+
 ### Planned (not yet implemented)
 
 ```cpp

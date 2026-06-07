@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include "test_check.hpp"
+#include <array>
 #include <cstddef>
 #include <limits>
 #include <random>
@@ -307,6 +308,46 @@ void test_spatial_index_throws_on_invalid_geometry() {
                     std::vector<PointRecord>{{1.0, 2.0, 1}});
 }
 
+// Large value type whose values are stored out of line (boxed). Has `.x/.y` for
+// indexing and `.id` for oracle comparison; the 256-byte blob makes it boxed.
+struct BigRecord {
+    double x = 0.0;
+    double y = 0.0;
+    int id = 0;
+    std::array<char, 256> blob{};
+};
+
+// Test: test_spatial_index_handles_large_boxed_values
+// Verifies the public index works end-to-end with a large (boxed) value type:
+// inserts that trigger splits relocate boxed entries, searches match the
+// brute-force oracle, and payloads survive intact across the boxed round trip.
+void test_spatial_index_handles_large_boxed_values() {
+    static_assert(talus::detail::rtree_boxes_value<BigRecord>);
+
+    talus::SpatialIndex<BigRecord, double, 4> index;  // small fanout => many splits
+    talus::test::BruteForceIndex<BigRecord, double> oracle;
+    std::mt19937 rng(99);
+    std::uniform_real_distribution<double> coord(-100.0, 100.0);
+
+    for (int id = 0; id < 300; ++id) {
+        BigRecord r;
+        r.x = coord(rng);
+        r.y = coord(rng);
+        r.id = id;
+        r.blob[0] = static_cast<char>(id & 0x7F);
+        index.insert(r);
+        oracle.insert(r);
+    }
+
+    const Box query{{-40.0, -40.0}, {40.0, 40.0}};
+    assert_same_ids(index.search(query), oracle.search(query));
+
+    // Payload integrity through the boxed round trip.
+    for (const BigRecord& r : index.search(query)) {
+        TALUS_CHECK(r.blob[0] == static_cast<char>(r.id & 0x7F));
+    }
+}
+
 } // namespace
 
 int main() {
@@ -318,5 +359,6 @@ int main() {
     test_spatial_index_grid_data_search_matches_brute_force();
     test_spatial_index_is_movable();
     test_spatial_index_throws_on_invalid_geometry();
+    test_spatial_index_handles_large_boxed_values();
     return 0;
 }
