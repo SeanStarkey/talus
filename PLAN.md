@@ -111,6 +111,9 @@ Completed:
   - move construction / move assignment — the root is pool-allocated (created
     lazily on first insert) so node storage is address-stable across a move;
     copying stays deleted
+  - input validation — `insert`/`search`/`within` throw `talus::invalid_geometry`
+    (a `std::invalid_argument`) on NaN/infinite coordinates or `min > max`, rather
+    than asserting/terminating; a rejected insert leaves the index unchanged
 
 Keep this phase intentionally narrow. Do not expand the public wrapper to
 nearest neighbor, delete, radius search, or bulk load until the minimal

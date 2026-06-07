@@ -144,6 +144,10 @@ std::vector<T> search(BoundingBox<Scalar> query) const;
 std::vector<T> within(BoundingBox<Scalar> query) const;  // alias for search
 ```
 
+`insert`, `search`, and `within` validate geometry at the boundary and throw
+`talus::invalid_geometry` (a `std::invalid_argument`) when a coordinate is NaN or
+infinite, or a box has `min > max`. A rejected `insert` leaves the index unchanged.
+
 ### Planned (not yet implemented)
 
 ```cpp

@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <concepts>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -20,6 +21,19 @@
 #include "geometry.hpp"
 
 namespace talus {
+
+/// @brief Thrown by `SpatialIndex` when given geometry with invalid bounds.
+///
+/// Bounds are "invalid" when a coordinate is NaN or infinite, or `min > max` on
+/// an axis — that is, when `BoundingBox::is_valid()` is false. Derives from
+/// `std::invalid_argument`, so it can also be caught as `std::invalid_argument`
+/// or `std::exception`.
+class invalid_geometry : public std::invalid_argument {
+public:
+    invalid_geometry()
+        : std::invalid_argument(
+              "talus: invalid geometry — coordinates must be finite with min <= max") {}
+};
 
 /// @brief R*-tree backed spatial index for automatically indexable values.
 ///
@@ -79,12 +93,18 @@ public:
     }
 
     /// @brief Inserts a copy of `value` into the index.
+    ///
+    /// @throws invalid_geometry if the value's extracted bounds are invalid
+    /// (a NaN/infinite coordinate, or min > max). The index is left unchanged.
     void insert(const T& value)
         requires std::copy_constructible<T> {
         insert_impl(value, value);
     }
 
     /// @brief Inserts `value` into the index by move.
+    ///
+    /// @throws invalid_geometry if the value's extracted bounds are invalid. The
+    /// index is unchanged and `value` is not moved from.
     void insert(T&& value) {
         const bounds_type bounds = bounding_box_of<Scalar>(value);
         insert_with_bounds(bounds, std::move(value));
@@ -110,9 +130,14 @@ public:
     /// @brief Returns copies of all values whose bounds intersect `query_bounds`.
     ///
     /// Boundary-touching boxes are included, matching `BoundingBox::intersects`.
+    ///
+    /// @throws invalid_geometry if `query_bounds` is invalid (a NaN/infinite
+    /// coordinate, or min > max).
     [[nodiscard]] std::vector<T> search(bounds_type query_bounds) const
         requires std::copy_constructible<T> {
-        TALUS_ASSERT(query_bounds.is_valid());
+        if (!query_bounds.is_valid()) {
+            throw invalid_geometry{};
+        }
 
         std::vector<T> matches;
         if (root_ != nullptr) {
@@ -141,7 +166,9 @@ private:
 
     template<typename U>
     void insert_with_bounds(bounds_type bounds, U&& value) {
-        TALUS_ASSERT(bounds.is_valid());
+        if (!bounds.is_valid()) {
+            throw invalid_geometry{};
+        }
 
         if (root_ == nullptr) {
             root_ = pool_.create();  // empty leaf root, allocated on first insert

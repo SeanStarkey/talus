@@ -5,7 +5,9 @@
 #include <algorithm>
 #include "test_check.hpp"
 #include <cstddef>
+#include <limits>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -258,6 +260,53 @@ void test_spatial_index_is_movable() {
     TALUS_CHECK(b.empty());
 }
 
+// Test: test_spatial_index_throws_on_invalid_geometry
+// Verifies the public boundary rejects invalid geometry: insert throws
+// talus::invalid_geometry on NaN and infinite coordinates and leaves the index
+// unchanged (strong guarantee); search throws on an inverted (min > max) query
+// box; the exception is catchable as std::invalid_argument; and valid operations
+// still work afterward.
+void test_spatial_index_throws_on_invalid_geometry() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    index.insert(PointRecord{1.0, 2.0, 1});
+    const std::size_t before = index.size();
+
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double inf = std::numeric_limits<double>::infinity();
+
+    bool threw = false;
+    try {
+        index.insert(PointRecord{nan, 0.0, 2});
+    } catch (const talus::invalid_geometry&) {
+        threw = true;
+    }
+    TALUS_CHECK(threw);
+    TALUS_CHECK(index.size() == before);  // rejected insert left the index unchanged
+
+    // Infinite coordinate, caught as the standard base type.
+    threw = false;
+    try {
+        index.insert(PointRecord{0.0, inf, 3});
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    TALUS_CHECK(threw);
+    TALUS_CHECK(index.size() == before);
+
+    // Inverted query box (min > max) on search.
+    threw = false;
+    try {
+        (void)index.search(Box{{5.0, 5.0}, {0.0, 0.0}});
+    } catch (const talus::invalid_geometry&) {
+        threw = true;
+    }
+    TALUS_CHECK(threw);
+
+    // A valid query still returns the stored value.
+    assert_same_ids(index.search(Box{{0.0, 0.0}, {2.0, 3.0}}),
+                    std::vector<PointRecord>{{1.0, 2.0, 1}});
+}
+
 } // namespace
 
 int main() {
@@ -268,5 +317,6 @@ int main() {
     test_spatial_index_randomized_search_matches_brute_force();
     test_spatial_index_grid_data_search_matches_brute_force();
     test_spatial_index_is_movable();
+    test_spatial_index_throws_on_invalid_geometry();
     return 0;
 }
