@@ -108,6 +108,9 @@ Completed:
   - `clear`
   - rectangular `search`
   - `within` alias for the documented rectangular query spelling
+  - move construction / move assignment — the root is pool-allocated (created
+    lazily on first insert) so node storage is address-stable across a move;
+    copying stays deleted
 
 Keep this phase intentionally narrow. Do not expand the public wrapper to
 nearest neighbor, delete, radius search, or bulk load until the minimal

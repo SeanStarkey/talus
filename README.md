@@ -128,6 +128,7 @@ method (above) to index types that lack `.x/.y` or `.lat/.lon` fields.
 
 ```cpp
 talus::SpatialIndex<T, Scalar = double, MaxChildren = 9>
+// Move-only: movable (noexcept) but not copyable.
 
 // Insertion (one value at a time)
 void insert(const T& value);   // requires copy-constructible T

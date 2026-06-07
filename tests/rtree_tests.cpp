@@ -211,6 +211,53 @@ void test_spatial_index_grid_data_search_matches_brute_force() {
     }
 }
 
+// Test: test_spatial_index_is_movable
+// Verifies SpatialIndex is move-constructible and move-assignable with the tree
+// intact. The index is built large enough to force a multi-level internal tree,
+// so node parent pointers must survive the move. After moving, searches still
+// match the oracle, further inserts (which walk parent pointers up to the root)
+// keep working, and the moved-from index is left empty and reusable.
+void test_spatial_index_is_movable() {
+    using Index = talus::SpatialIndex<PointRecord, double, 4>;
+
+    Index a;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    std::mt19937 rng(7);
+    std::uniform_real_distribution<double> coord(-100.0, 100.0);
+    for (int id = 0; id < 200; ++id) {
+        const PointRecord p{coord(rng), coord(rng), id};
+        a.insert(p);
+        oracle.insert(p);
+    }
+
+    const Box query{{-50.0, -50.0}, {50.0, 50.0}};
+    const std::size_t original_size = a.size();
+
+    // Move-construct: b takes a's tree; a is left empty and reusable.
+    Index b(std::move(a));
+    TALUS_CHECK(b.size() == original_size);
+    assert_same_ids(b.search(query), oracle.search(query));
+    TALUS_CHECK(a.empty());
+    a.insert(PointRecord{0.0, 0.0, -1});
+    TALUS_CHECK(a.size() == 1);
+
+    // Inserting into the moved index walks parent pointers up to the root; a
+    // dangling parent or stale root would corrupt here (and trip ASan in CI).
+    for (int id = 200; id < 280; ++id) {
+        const PointRecord p{coord(rng), coord(rng), id};
+        b.insert(p);
+        oracle.insert(p);
+    }
+    assert_same_ids(b.search(query), oracle.search(query));
+
+    // Move-assign over an index that already holds data.
+    Index c;
+    c.insert(PointRecord{1.0, 2.0, -2});
+    c = std::move(b);
+    assert_same_ids(c.search(query), oracle.search(query));
+    TALUS_CHECK(b.empty());
+}
+
 } // namespace
 
 int main() {
@@ -220,5 +267,6 @@ int main() {
     test_spatial_index_accepts_move_inserted_values();
     test_spatial_index_randomized_search_matches_brute_force();
     test_spatial_index_grid_data_search_matches_brute_force();
+    test_spatial_index_is_movable();
     return 0;
 }

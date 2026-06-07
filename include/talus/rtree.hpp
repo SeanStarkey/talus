@@ -45,17 +45,38 @@ public:
     /// @brief Constructs an empty index.
     SpatialIndex() = default;
 
-    /// Indexes own address-stable tree nodes and cannot be copied.
+    /// Copying would require deep-copying the whole tree (and a copyable `T`);
+    /// the index is move-only.
     SpatialIndex(const SpatialIndex&) = delete;
 
-    /// Indexes own address-stable tree nodes and cannot be copied.
+    /// Copying would require deep-copying the whole tree (and a copyable `T`);
+    /// the index is move-only.
     SpatialIndex& operator=(const SpatialIndex&) = delete;
 
-    /// Indexes own address-stable tree nodes and cannot be moved.
-    SpatialIndex(SpatialIndex&&) = delete;
+    /// @brief Move-constructs by taking the other index's pool and root.
+    ///
+    /// Node storage is owned by the pool and stays address-stable across the
+    /// move, so every parent/child pointer (the root included) remains valid.
+    /// The moved-from index is left empty and reusable.
+    SpatialIndex(SpatialIndex&& other) noexcept
+        : pool_(std::move(other.pool_)),
+          root_(other.root_),
+          size_(other.size_) {
+        other.root_ = nullptr;
+        other.size_ = 0;
+    }
 
-    /// Indexes own address-stable tree nodes and cannot be moved.
-    SpatialIndex& operator=(SpatialIndex&&) = delete;
+    /// @brief Move-assigns, releasing this index's nodes and taking `other`'s.
+    SpatialIndex& operator=(SpatialIndex&& other) noexcept(std::is_nothrow_destructible_v<T>) {
+        if (this != &other) {
+            pool_ = std::move(other.pool_);
+            root_ = other.root_;
+            size_ = other.size_;
+            other.root_ = nullptr;
+            other.size_ = 0;
+        }
+        return *this;
+    }
 
     /// @brief Inserts a copy of `value` into the index.
     void insert(const T& value)
@@ -81,8 +102,8 @@ public:
 
     /// @brief Removes every value while retaining already allocated node blocks.
     void clear() noexcept(std::is_nothrow_destructible_v<T>) {
-        root_.reset_as_leaf();
-        pool_.reset();
+        pool_.reset();   // destroys all nodes (the root included), keeps blocks
+        root_ = nullptr; // re-created lazily on the next insert
         size_ = 0;
     }
 
@@ -94,9 +115,11 @@ public:
         TALUS_ASSERT(query_bounds.is_valid());
 
         std::vector<T> matches;
-        detail::search(root_, query_bounds, [&](const T& value) {
-            matches.push_back(value);
-        });
+        if (root_ != nullptr) {
+            detail::search(*root_, query_bounds, [&](const T& value) {
+                matches.push_back(value);
+            });
+        }
         return matches;
     }
 
@@ -120,19 +143,24 @@ private:
     void insert_with_bounds(bounds_type bounds, U&& value) {
         TALUS_ASSERT(bounds.is_valid());
 
+        if (root_ == nullptr) {
+            root_ = pool_.create();  // empty leaf root, allocated on first insert
+        }
+
         const auto result = detail::insert_with_split(
-            root_,
+            *root_,
             pool_,
             bounds,
             std::forward<U>(value));
         TALUS_ASSERT(result.inserted);
+        root_ = result.root;  // stable today, but follow it in case the root changes
         if (result.inserted) {
             ++size_;
         }
     }
 
     pool_type pool_{};
-    node_type root_{};
+    node_type* root_ = nullptr;
     std::size_t size_ = 0;
 };
 
