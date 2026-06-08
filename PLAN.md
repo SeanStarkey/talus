@@ -21,7 +21,8 @@ to operate on in-source builds.
 The R-tree implementation has storage primitives, the first algorithm slice, and
 the minimal public wrapper. Node layout, overlap-aware ChooseLeaf, non-splitting
 Insert, the low-level SplitNode primitive, AdjustTree split propagation, Search,
-and public `SpatialIndex` insert/search are in place. ChooseSubtree and the
+NearestNeighbor, and public `SpatialIndex` insert/search/nearest-neighbor are
+in place. ChooseSubtree and the
 split-index selection use a margin (half-perimeter) tie-breaker so point and
 axis-aligned data — where bounding boxes have zero area — are still ranked
 spatially instead of collapsing to the entry-count fallback.
@@ -91,9 +92,10 @@ and test in this order:
 3. Completed: SplitNode
 4. Completed: AdjustTree
 5. Completed: Search
+6. Completed: NearestNeighbor
 
 The R*-tree overlap-aware ChooseLeaf behavior is covered by focused tests. Do
-not start NearestNeighbor, Delete, or STR bulk load until Insert and Search
+not start Delete or STR bulk load until Insert, Search, and NearestNeighbor
 correctness is solid. Each step should have focused tests before moving to the
 next one.
 
@@ -110,16 +112,19 @@ Completed:
   - `clear`
   - rectangular `search`
   - `within` alias for the documented rectangular query spelling
+  - `nearest_neighbor` for point-to-bounds nearest queries, returning
+    `std::optional<T>`
   - move construction / move assignment — the root is pool-allocated (created
     lazily on first insert) so node storage is address-stable across a move;
     copying stays deleted
-  - input validation — `insert`/`search`/`within` throw `talus::invalid_geometry`
-    (a `std::invalid_argument`) on NaN/infinite coordinates or `min > max`, rather
-    than asserting/terminating; a rejected insert leaves the index unchanged
+  - input validation — `insert`/`search`/`within`/`nearest_neighbor` throw
+    `talus::invalid_geometry` (a `std::invalid_argument`) on NaN/infinite
+    coordinates or `min > max`, rather than asserting/terminating; a rejected
+    insert leaves the index unchanged
 
 Keep this phase intentionally narrow. Do not expand the public wrapper to
-nearest neighbor, delete, radius search, or bulk load until the minimal
-insert/search API is covered by oracle tests.
+delete, radius search, or bulk load until the minimal insert/search/nearest
+API is covered by oracle tests.
 
 ### 6. Add the Brute-force Oracle
 
@@ -131,12 +136,11 @@ insert/search API is covered by oracle tests.
 
 ### 7. Implement Remaining R*-tree Algorithms
 
-After Insert and Search are solid, add to `algorithms.hpp`:
+After Insert, Search, and NearestNeighbor are solid, add to `algorithms.hpp`:
 
-1. NearestNeighbor
-2. Radius search
-3. Delete
-4. STR bulk load
+1. Radius search
+2. Delete
+3. STR bulk load
 
 ### 8. Add Examples and Benchmarks
 
@@ -153,6 +157,6 @@ After correctness is established:
 ## Next Concrete Task
 
 Continue with the remaining R*-tree algorithms after the public insert/search
-API is stable. Start with nearest-neighbor support in `include/talus/detail/algorithms.hpp`,
+API is stable. Start with radius search in `include/talus/detail/algorithms.hpp`,
 then expose the matching public wrapper method and compare results against the
 brute-force oracle.

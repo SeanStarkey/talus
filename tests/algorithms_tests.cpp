@@ -989,6 +989,65 @@ void test_search_split_insert_tree_matches_deterministic_query() {
     TALUS_CHECK((matches == std::vector<int>{100, 101, 102}));
 }
 
+// Test: test_nearest_neighbor_empty_root_returns_null
+// Verifies NearestNeighbor reports no value for an empty tree and does not try
+// to inspect leaf storage when the root has no entries.
+void test_nearest_neighbor_empty_root_returns_null() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root;
+
+    const int* nearest = talus::detail::nearest_neighbor(root, talus::Point<double>{0.0, 0.0});
+
+    TALUS_CHECK(nearest == nullptr);
+}
+
+// Test: test_nearest_neighbor_leaf_uses_entry_bounds
+// Verifies NearestNeighbor ranks leaf entries by the minimum squared distance
+// from the query point to each stored bounding box, not by insertion order.
+void test_nearest_neighbor_leaf_uses_entry_bounds() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root;
+    root.append_value(Box{{100.0, 100.0}, {101.0, 101.0}}, 100);
+    root.append_value(Box{{5.0, 5.0}, {7.0, 7.0}}, 5);
+    root.append_value(Box{{20.0, 20.0}, {21.0, 21.0}}, 20);
+
+    const int* nearest = talus::detail::nearest_neighbor(root, talus::Point<double>{6.0, 6.0});
+
+    TALUS_CHECK(nearest != nullptr);
+    TALUS_CHECK(*nearest == 5);
+}
+
+// Test: test_nearest_neighbor_internal_tree_finds_best_leaf_entry
+// Verifies NearestNeighbor descends through internal nodes and finds the closest
+// entry in a split-built tree whose root has grown beyond a single leaf.
+void test_nearest_neighbor_internal_tree_finds_best_leaf_entry() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node, 16> pool;
+    Node root;
+
+    for (int value : {-100, -50, -10, 0, 25, 50, 100, 150, 200}) {
+        auto result = talus::detail::insert_with_split(
+            root,
+            pool,
+            Box{
+                {static_cast<double>(value), 0.0},
+                {static_cast<double>(value), 0.0}
+            },
+            value);
+        TALUS_CHECK(result.inserted);
+    }
+
+    TALUS_CHECK(root.is_internal());
+
+    const int* nearest = talus::detail::nearest_neighbor(root, talus::Point<double>{48.0, 3.0});
+
+    TALUS_CHECK(nearest != nullptr);
+    TALUS_CHECK(*nearest == 50);
+}
+
 // Test: test_choose_leaf_uses_margin_when_area_is_degenerate
 // Verifies ChooseSubtree picks the spatially nearer leaf among collinear
 // children whose boxes have zero area. Both candidates are horizontal lines
@@ -1054,4 +1113,7 @@ int main() {
     test_search_leaf_reports_intersecting_values();
     test_search_internal_prunes_disjoint_children();
     test_search_split_insert_tree_matches_deterministic_query();
+    test_nearest_neighbor_empty_root_returns_null();
+    test_nearest_neighbor_leaf_uses_entry_bounds();
+    test_nearest_neighbor_internal_tree_finds_best_leaf_entry();
 }

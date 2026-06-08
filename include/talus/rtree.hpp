@@ -8,6 +8,8 @@
 
 #include <cstddef>
 #include <concepts>
+#include <cmath>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -152,6 +154,29 @@ public:
     [[nodiscard]] std::vector<T> within(bounds_type query_bounds) const
         requires std::copy_constructible<T> {
         return search(query_bounds);
+    }
+
+    /// @brief Returns the value whose bounds are nearest to `query`, if any.
+    ///
+    /// Distance is measured from the query point to each stored value's bounds;
+    /// bounded geometries containing the query point have distance zero.
+    ///
+    /// @throws invalid_geometry if either query coordinate is NaN or infinite.
+    [[nodiscard]] std::optional<T> nearest_neighbor(Point<Scalar> query) const
+        requires std::copy_constructible<T> {
+        if (!std::isfinite(query.x) || !std::isfinite(query.y)) {
+            throw invalid_geometry{};
+        }
+
+        if (root_ == nullptr) {
+            return std::nullopt;
+        }
+
+        const T* nearest = detail::nearest_neighbor(*root_, query);
+        if (nearest == nullptr) {
+            return std::nullopt;
+        }
+        return *nearest;
     }
 
 private:

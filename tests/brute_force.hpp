@@ -7,6 +7,8 @@
 /// R-tree tests can compare results against a simple implementation.
 
 #include <cstddef>
+#include <limits>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -59,6 +61,25 @@ public:
     [[nodiscard]] std::vector<T> within(bounds_type query_bounds) const
         requires std::copy_constructible<T> {
         return search(query_bounds);
+    }
+
+    [[nodiscard]] std::optional<T> nearest_neighbor(Point<Scalar> query) const
+        requires std::copy_constructible<T> {
+        const T* nearest = nullptr;
+        Scalar best_sq_distance = std::numeric_limits<Scalar>::infinity();
+
+        for (const T& value : values_) {
+            const Scalar sq_distance = bounding_box_of<Scalar>(value).min_sq_distance(query);
+            if (sq_distance < best_sq_distance) {
+                nearest = &value;
+                best_sq_distance = sq_distance;
+            }
+        }
+
+        if (nearest == nullptr) {
+            return std::nullopt;
+        }
+        return *nearest;
     }
 
 private:

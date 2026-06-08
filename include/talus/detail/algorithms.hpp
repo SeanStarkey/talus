@@ -668,4 +668,77 @@ std::size_t search(
     return search_detail::search_impl(root, query_bounds, visitor);
 }
 
+namespace nearest_detail {
+
+template<typename T, typename Scalar, std::size_t MaxChildren>
+struct NearestState {
+    const T* value = nullptr;
+    Scalar sq_distance = std::numeric_limits<Scalar>::infinity();
+};
+
+template<typename T, typename Scalar, std::size_t MaxChildren>
+void nearest_impl(
+    const RTreeNode<T, Scalar, MaxChildren>& node,
+    Point<Scalar> query,
+    NearestState<T, Scalar, MaxChildren>& best) {
+    if (node.empty() || node.bounds().min_sq_distance(query) > best.sq_distance) {
+        return;
+    }
+
+    if (node.is_leaf()) {
+        for (const auto& entry : node.values()) {
+            const Scalar sq_distance = entry.bounds.min_sq_distance(query);
+            if (sq_distance < best.sq_distance) {
+                best.value = &entry.value();
+                best.sq_distance = sq_distance;
+            }
+        }
+        return;
+    }
+
+    struct Candidate {
+        const RTreeNode<T, Scalar, MaxChildren>* child = nullptr;
+        Scalar sq_distance = Scalar{};
+    };
+
+    std::vector<Candidate> candidates;
+    candidates.reserve(node.count());
+    for (const auto& entry : node.children()) {
+        TALUS_ASSERT(entry.child != nullptr);
+        const Scalar sq_distance = entry.bounds.min_sq_distance(query);
+        if (sq_distance <= best.sq_distance) {
+            candidates.push_back({entry.child, sq_distance});
+        }
+    }
+
+    std::sort(candidates.begin(), candidates.end(),
+        [](const Candidate& lhs, const Candidate& rhs) {
+            return lhs.sq_distance < rhs.sq_distance;
+        });
+
+    for (const Candidate& candidate : candidates) {
+        if (candidate.sq_distance > best.sq_distance) {
+            break;
+        }
+        nearest_impl(*candidate.child, query, best);
+    }
+}
+
+} // namespace nearest_detail
+
+/// @brief Returns the stored value nearest to `query`, or null when the tree is empty.
+///
+/// Distance is measured from the query point to each stored entry's bounding box
+/// using squared Euclidean distance. A point inside a stored box therefore has
+/// distance zero. Traversal visits child boxes in increasing minimum-distance
+/// order and prunes subtrees that cannot improve the current best result.
+template<typename T, typename Scalar, std::size_t MaxChildren>
+[[nodiscard]] const T* nearest_neighbor(
+    const RTreeNode<T, Scalar, MaxChildren>& root,
+    Point<Scalar> query) {
+    nearest_detail::NearestState<T, Scalar, MaxChildren> best;
+    nearest_detail::nearest_impl(root, query, best);
+    return best.value;
+}
+
 } // namespace talus::detail
