@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -489,6 +490,15 @@ void print_geometry(const DriverGeometry& geometry) {
     return query;
 }
 
+[[nodiscard]] Point read_query_point() {
+    return {read_double("x / longitude: "), read_double("y / latitude: ")};
+}
+
+[[nodiscard]] bool looks_like_reversed_lat_lon(Point query) noexcept {
+    return query.x >= -90.0 && query.x <= 90.0
+        && (query.y < -90.0 || query.y > 90.0);
+}
+
 void seed_examples(Index& index, std::vector<DriverGeometry>& records) {
     const std::vector<DriverGeometry> fixtures{
         {1, DriverGeometry::Kind::point, "Union Station", "transit", {{-104.9903, 39.7392}, {-104.9903, 39.7392}}},
@@ -531,6 +541,32 @@ void search_index(const Index& index) {
     }
 }
 
+void nearest_neighbor(const Index& index) {
+    const Point query = read_query_point();
+    if (looks_like_reversed_lat_lon(query)) {
+        std::cout << "Note: that looks like latitude/longitude order. Talus queries use "
+                  << "x/longitude first and y/latitude second; try ("
+                  << query.y << ", " << query.x << ") if this result looks wrong.\n";
+    }
+
+    const std::optional<DriverGeometry> match = index.nearest_neighbor(query);
+
+    std::cout << "Nearest stored bounds to (" << query.x << ", " << query.y << "):\n";
+    if (!match) {
+        std::cout << "No geometries loaded.\n";
+        return;
+    }
+
+    print_geometry(*match);
+    const double sq_distance = match->bounds().min_sq_distance(query);
+    std::cout << "Squared distance to stored bounds: " << sq_distance << "\n";
+    if (sq_distance == 0.0 && match->kind != DriverGeometry::Kind::point
+        && match->kind != DriverGeometry::Kind::lat_lon) {
+        std::cout << "Note: nearest_neighbor measures distance to stored bounds; "
+                  << "boxes and segments can match at distance 0 when the query is inside them.\n";
+    }
+}
+
 void list_records(const std::vector<DriverGeometry>& records) {
     if (records.empty()) {
         std::cout << "No geometries loaded.\n";
@@ -561,9 +597,10 @@ void print_menu(const Index& index) {
         << " | empty(): " << (index.empty() ? "true" : "false") << "\n"
         << "1. List loaded geometries\n"
         << "2. Search with bounding box\n"
-        << "3. Import JSON file\n"
-        << "4. Clear index\n"
-        << "5. Show JSON import format\n"
+        << "3. Nearest neighbor from x/lon, y/lat\n"
+        << "4. Import JSON file\n"
+        << "5. Clear index\n"
+        << "6. Show JSON import format\n"
         << "0. Quit\n"
         << "Choice: ";
 }
@@ -600,12 +637,14 @@ int main(int argc, char** argv) {
                 } else if (choice == "2") {
                     search_index(index);
                 } else if (choice == "3") {
-                    import_json(index, records);
+                    nearest_neighbor(index);
                 } else if (choice == "4") {
+                    import_json(index, records);
+                } else if (choice == "5") {
                     index.clear();
                     records.clear();
                     std::cout << "Index cleared.\n";
-                } else if (choice == "5") {
+                } else if (choice == "6") {
                     print_import_help();
                 } else if (choice == "0" || choice == "q" || choice == "quit") {
                     break;
