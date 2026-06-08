@@ -34,7 +34,8 @@ The following scaffolding directories currently contain placeholder CMake files:
 `examples/` now includes `talus_driver`, a menu-driven command-line
 program that exercises the current public `SpatialIndex` API with seeded data,
 rectangular search, clearing, size/empty reporting, and JSON import for mixed
-point, lat/lon, box, and segment records.
+point, lat/lon, box, and segment records. The example datasets include Colorado
+14er and ranked Colorado 13er summit coordinates.
 
 The concept layer now supports scalar-aware bounding-box extraction and gives `.bounds()` precedence over point fields when a type satisfies both.
 
