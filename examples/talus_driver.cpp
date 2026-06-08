@@ -499,21 +499,6 @@ void print_geometry(const DriverGeometry& geometry) {
         && (query.y < -90.0 || query.y > 90.0);
 }
 
-void seed_examples(Index& index, std::vector<DriverGeometry>& records) {
-    const std::vector<DriverGeometry> fixtures{
-        {1, DriverGeometry::Kind::point, "Union Station", "transit", {{-104.9903, 39.7392}, {-104.9903, 39.7392}}},
-        {2, DriverGeometry::Kind::point, "Coors Field", "stadium", {{-104.9849, 39.7462}, {-104.9849, 39.7462}}},
-        {3, DriverGeometry::Kind::lat_lon, "Denver Zoo", "park", {{-104.9623, 39.7692}, {-104.9623, 39.7692}}},
-        {4, DriverGeometry::Kind::box, "Civic Center", "district", {{-104.9930, 39.7350}, {-104.9840, 39.7420}}},
-        {5, DriverGeometry::Kind::segment, "Cherry Creek Trail", "trail", {{-105.0000, 39.7300}, {-104.9600, 39.7550}}}
-    };
-
-    for (DriverGeometry geometry : fixtures) {
-        index.insert(geometry);
-        records.push_back(std::move(geometry));
-    }
-}
-
 void import_json(Index& index, std::vector<DriverGeometry>& records) {
     const std::string path = read_line("JSON file path: ");
     std::vector<DriverGeometry> imported = geometries_from_json_file(path);
@@ -611,7 +596,6 @@ int main(int argc, char** argv) {
     try {
         Index index;
         std::vector<DriverGeometry> records;
-        seed_examples(index, records);
 
         for (int i = 1; i < argc; ++i) {
             std::vector<DriverGeometry> imported = geometries_from_json_file(argv[i]);
