@@ -265,6 +265,37 @@ void test_spatial_index_erase_one_of_duplicate_values() {
     TALUS_CHECK(index.search(Box{{1.0, 2.0}, {1.0, 2.0}}).empty());
 }
 
+// Test: test_spatial_index_erase_to_empty_then_reuse
+// Verifies that erasing every entry from a multi-level index leaves the root
+// in a clean leaf state, so subsequent inserts and searches behave like a
+// freshly constructed index.
+void test_spatial_index_erase_to_empty_then_reuse() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+
+    std::vector<PointRecord> points;
+    for (int i = 0; i < 24; ++i) {
+        points.push_back({static_cast<double>(i), static_cast<double>(i * 2), i + 1});
+    }
+
+    for (const PointRecord& point : points) {
+        index.insert(point);
+    }
+
+    for (const PointRecord& point : points) {
+        TALUS_CHECK(index.erase(point));
+    }
+    TALUS_CHECK(index.empty());
+    TALUS_CHECK(index.search(Box{{-100.0, -100.0}, {100.0, 100.0}}).empty());
+
+    const PointRecord revived{5.0, 5.0, 99};
+    index.insert(revived);
+    TALUS_CHECK(index.size() == 1);
+
+    const std::vector<PointRecord> found = index.search(Box{{5.0, 5.0}, {5.0, 5.0}});
+    TALUS_CHECK(found.size() == 1);
+    TALUS_CHECK(found.front() == revived);
+}
+
 // Test: test_spatial_index_randomized_erase_matches_brute_force
 // Verifies randomized erases and subsequent rectangle queries stay identical to
 // the brute-force oracle across many condense, root-collapse, and reinsert paths.
@@ -688,6 +719,7 @@ int main() {
     test_spatial_index_randomized_search_matches_brute_force();
     test_spatial_index_erase_matches_brute_force_fixture();
     test_spatial_index_erase_one_of_duplicate_values();
+    test_spatial_index_erase_to_empty_then_reuse();
     test_spatial_index_randomized_erase_matches_brute_force();
     test_spatial_index_grid_data_search_matches_brute_force();
     test_spatial_index_radius_search_matches_brute_force_fixture();

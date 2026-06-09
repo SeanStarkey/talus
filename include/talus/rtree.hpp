@@ -167,9 +167,6 @@ public:
             if (result.erased) {
                 --size_;
             }
-            if (size_ == 0 && root_ != nullptr) {
-                root_->reset_as_leaf();
-            }
             return result.erased;
         } catch (...) {
             size_ = detail::count_values(*root_);
