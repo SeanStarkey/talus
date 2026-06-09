@@ -484,12 +484,14 @@ void print_geometry(const DriverGeometry& geometry) {
     while (true) {
         const std::string line = read_line("record id: ");
         std::istringstream input(line);
-        std::size_t id = 0;
+        // Parse as signed so negative input is rejected here rather than
+        // wrapping to a huge value, as extraction into an unsigned type would.
+        long long id = 0;
         input >> id;
         const bool parsed = !input.fail();
         input >> std::ws;
         if (parsed && input.eof() && id > 0) {
-            return id;
+            return static_cast<std::size_t>(id);
         }
         std::cout << "Please enter a positive integer id.\n";
     }
