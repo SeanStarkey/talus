@@ -7,6 +7,8 @@
 /// R-tree tests can compare results against a simple implementation.
 
 #include <cstddef>
+#include <algorithm>
+#include <concepts>
 #include <limits>
 #include <optional>
 #include <type_traits>
@@ -45,6 +47,16 @@ public:
 
     void clear() noexcept(std::is_nothrow_destructible_v<T>) {
         values_.clear();
+    }
+
+    bool erase(const T& value)
+        requires std::equality_comparable<T> {
+        const auto found = std::find(values_.begin(), values_.end(), value);
+        if (found == values_.end()) {
+            return false;
+        }
+        values_.erase(found);
+        return true;
     }
 
     [[nodiscard]] std::vector<T> search(bounds_type query_bounds) const

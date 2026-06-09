@@ -129,6 +129,42 @@ public:
         size_ = 0;
     }
 
+    /// @brief Removes one stored value equal to `value`.
+    ///
+    /// Returns true when a matching value was found and erased. Bounds are
+    /// extracted from `value`, so only entries with matching bounds and value
+    /// equality are eligible. Underfull nodes are condensed internally and their
+    /// remaining entries are reinserted.
+    ///
+    /// @throws invalid_geometry if the value's extracted bounds are invalid.
+    bool erase(const T& value)
+        requires std::equality_comparable<T> {
+        const bounds_type bounds = bounding_box_of<Scalar>(value);
+        if (!bounds.is_valid()) {
+            throw invalid_geometry{};
+        }
+
+        if (root_ == nullptr) {
+            return false;
+        }
+
+        const auto result = detail::erase(
+            *root_,
+            pool_,
+            bounds,
+            [&](const T& stored) {
+                return stored == value;
+            });
+        root_ = result.root;
+        if (result.erased) {
+            --size_;
+        }
+        if (size_ == 0 && root_ != nullptr) {
+            root_->reset_as_leaf();
+        }
+        return result.erased;
+    }
+
     /// @brief Returns copies of all values whose bounds intersect `query_bounds`.
     ///
     /// Boundary-touching boxes are included, matching `BoundingBox::intersects`.

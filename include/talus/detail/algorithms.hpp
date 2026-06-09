@@ -113,6 +113,22 @@ struct RTreeAdjustedInsertResult {
     bool grew_height = false;
 };
 
+/// @brief Result returned after deleting one matching value.
+template<typename Node>
+struct RTreeDeleteResult {
+    /// Stable root object after condensing and reinsertion.
+    Node* root = nullptr;
+
+    /// True when a matching leaf entry was found and removed.
+    bool erased = false;
+
+    /// Number of underfull non-root nodes detached while condensing the tree.
+    std::size_t condensed_nodes = 0;
+
+    /// Number of remaining entries reinserted from detached subtrees.
+    std::size_t reinserted_entries = 0;
+};
+
 /// @brief Returns the index of `child` in `parent`.
 template<typename T, typename Scalar, std::size_t MaxChildren>
 [[nodiscard]] std::size_t find_child_index(
@@ -618,6 +634,183 @@ RTreeAdjustedInsertResult<RTreeNode<T, Scalar, MaxChildren>> insert_with_split(
         adjust_result.split_count,
         adjust_result.grew_height
     };
+}
+
+namespace delete_detail {
+
+template<typename Node>
+struct LocatedEntry {
+    Node* leaf = nullptr;
+    std::size_t index = 0;
+};
+
+template<typename T, typename Scalar, std::size_t MaxChildren, typename Predicate>
+[[nodiscard]] LocatedEntry<RTreeNode<T, Scalar, MaxChildren>> find_leaf_entry(
+    RTreeNode<T, Scalar, MaxChildren>& node,
+    BoundingBox<Scalar> entry_bounds,
+    Predicate& predicate) {
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+
+    if (node.empty() || !node.bounds().intersects(entry_bounds)) {
+        return {};
+    }
+
+    if (node.is_leaf()) {
+        for (std::size_t i = 0; i < node.count(); ++i) {
+            auto& entry = node.value_at(i);
+            if (entry.bounds == entry_bounds && predicate(entry.value())) {
+                return {&node, i};
+            }
+        }
+        return {};
+    }
+
+    for (auto& entry : node.children()) {
+        TALUS_ASSERT(entry.child != nullptr);
+        if (!entry.bounds.intersects(entry_bounds)) {
+            continue;
+        }
+
+        LocatedEntry<node_type> found = find_leaf_entry(*entry.child, entry_bounds, predicate);
+        if (found.leaf != nullptr) {
+            return found;
+        }
+    }
+
+    return {};
+}
+
+template<typename T, typename Scalar, std::size_t MaxChildren, std::size_t BlockSize>
+void collect_subtree_entries(
+    RTreeNode<T, Scalar, MaxChildren>& node,
+    PoolAllocator<RTreeNode<T, Scalar, MaxChildren>, BlockSize>& pool,
+    std::vector<typename RTreeNode<T, Scalar, MaxChildren>::value_entry_type>& entries) {
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+
+    if (node.is_leaf()) {
+        entries.reserve(entries.size() + node.count());
+        for (std::size_t i = 0; i < node.count(); ++i) {
+            entries.emplace_back(std::move(node.value_at(i)));
+        }
+        node.clear();
+        pool.destroy(&node);
+        return;
+    }
+
+    std::vector<node_type*> children;
+    children.reserve(node.count());
+    for (const auto& entry : node.children()) {
+        TALUS_ASSERT(entry.child != nullptr);
+        children.push_back(entry.child);
+    }
+
+    node.clear();
+    for (node_type* child : children) {
+        collect_subtree_entries(*child, pool, entries);
+    }
+    pool.destroy(&node);
+}
+
+template<typename T, typename Scalar, std::size_t MaxChildren, std::size_t BlockSize>
+[[nodiscard]] bool collapse_root_if_needed(
+    RTreeNode<T, Scalar, MaxChildren>& root,
+    PoolAllocator<RTreeNode<T, Scalar, MaxChildren>, BlockSize>& pool) {
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+
+    bool collapsed = false;
+    while (root.is_internal() && root.count() <= 1) {
+        if (root.count() == 0) {
+            root.reset_as_leaf();
+            return true;
+        }
+
+        node_type* only_child = root.child_at(0).child;
+        TALUS_ASSERT(only_child != nullptr);
+        adjust_detail::move_entries(*only_child, root);
+        pool.destroy(only_child);
+        root.set_parent(nullptr);
+        collapsed = true;
+    }
+
+    return collapsed;
+}
+
+template<typename T, typename Scalar, std::size_t MaxChildren, std::size_t BlockSize>
+std::size_t reinsert_entries(
+    RTreeNode<T, Scalar, MaxChildren>& root,
+    PoolAllocator<RTreeNode<T, Scalar, MaxChildren>, BlockSize>& pool,
+    std::vector<typename RTreeNode<T, Scalar, MaxChildren>::value_entry_type>& entries) {
+    std::size_t reinserted = 0;
+    for (auto& entry : entries) {
+        auto result = insert_with_split(root, pool, entry.bounds, std::move(entry.value()));
+        TALUS_ASSERT(result.inserted);
+        (void)result;
+        ++reinserted;
+    }
+    return reinserted;
+}
+
+} // namespace delete_detail
+
+/// @brief Removes one leaf entry matching `entry_bounds` and `predicate`.
+///
+/// After removal, underfull non-root nodes are detached, their remaining leaf
+/// entries are reinserted, and a root with a single child is collapsed. This is
+/// the classic R-tree CondenseTree deletion flow.
+template<typename T, typename Scalar, std::size_t MaxChildren, std::size_t BlockSize, typename Predicate>
+RTreeDeleteResult<RTreeNode<T, Scalar, MaxChildren>> erase(
+    RTreeNode<T, Scalar, MaxChildren>& root,
+    PoolAllocator<RTreeNode<T, Scalar, MaxChildren>, BlockSize>& pool,
+    BoundingBox<Scalar> entry_bounds,
+    Predicate&& predicate) {
+    TALUS_ASSERT(entry_bounds.is_valid());
+
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+    using entry_type = typename node_type::value_entry_type;
+
+    static_assert(node_type::can_relocate_value_entries,
+        "erase requires move-constructible value entries");
+
+    Predicate predicate_ref = std::forward<Predicate>(predicate);
+    auto located = delete_detail::find_leaf_entry(root, entry_bounds, predicate_ref);
+    if (located.leaf == nullptr) {
+        return {&root, false, 0, 0};
+    }
+
+    node_type* node = located.leaf;
+    node->remove_at(located.index);
+
+    std::vector<entry_type> orphaned_entries;
+    std::size_t condensed_nodes = 0;
+
+    while (node != &root) {
+        node_type* parent = node->parent();
+        TALUS_ASSERT(parent != nullptr);
+
+        if (node->underfull()) {
+            const std::size_t node_index = find_child_index(*parent, node);
+            parent->remove_at(node_index);
+            delete_detail::collect_subtree_entries(*node, pool, orphaned_entries);
+            ++condensed_nodes;
+            node = parent;
+            continue;
+        }
+
+        const std::size_t node_index = find_child_index(*parent, node);
+        parent->update_bounds(node_index, node->bounds());
+        node = parent;
+    }
+
+    root.recompute_bounds();
+    [[maybe_unused]] const bool collapsed_before_reinsert =
+        delete_detail::collapse_root_if_needed(root, pool);
+    const std::size_t reinserted =
+        delete_detail::reinsert_entries(root, pool, orphaned_entries);
+    [[maybe_unused]] const bool collapsed_after_reinsert =
+        delete_detail::collapse_root_if_needed(root, pool);
+    root.recompute_bounds();
+
+    return {&root, true, condensed_nodes, reinserted};
 }
 
 namespace search_detail {

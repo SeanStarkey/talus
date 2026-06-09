@@ -22,6 +22,8 @@ struct PointRecord {
     double x = 0.0;
     double y = 0.0;
     int id = 0;
+
+    constexpr bool operator==(const PointRecord&) const noexcept = default;
 };
 
 struct BoundedRecord {
@@ -31,12 +33,16 @@ struct BoundedRecord {
     [[nodiscard]] Box bounds() const noexcept {
         return box;
     }
+
+    constexpr bool operator==(const BoundedRecord&) const noexcept = default;
 };
 
 struct NamedPoint {
     double x = 0.0;
     double y = 0.0;
     std::string name;
+
+    bool operator==(const NamedPoint&) const = default;
 };
 
 template<typename T>
@@ -181,6 +187,107 @@ void test_spatial_index_randomized_search_matches_brute_force() {
         PointRecord point{coord(rng), coord(rng), id};
         index.insert(point);
         oracle.insert(point);
+    }
+
+    for (std::size_t i = 0; i < 200; ++i) {
+        const double x = coord(rng);
+        const double y = coord(rng);
+        const double width = extent(rng);
+        const double height = extent(rng);
+        const Box query{{x, y}, {x + width, y + height}};
+        assert_same_ids(index.search(query), oracle.search(query));
+    }
+}
+
+// Test: test_spatial_index_erase_matches_brute_force_fixture
+// Verifies public erase removes one exact value, reports misses without
+// changing size, and keeps later searches aligned with the brute-force oracle
+// after enough inserts and erases to trigger condense/reinsertion paths.
+void test_spatial_index_erase_matches_brute_force_fixture() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+
+    const std::vector<PointRecord> points{
+        {-4.0, -4.0, 1},
+        {-1.0, -1.0, 2},
+        {0.0, 0.0, 3},
+        {1.0, 1.0, 4},
+        {2.0, 2.0, 5},
+        {8.0, 8.0, 6},
+        {9.0, 9.0, 7},
+        {10.0, 10.0, 8},
+        {11.0, 11.0, 9},
+        {20.0, 20.0, 10}
+    };
+
+    for (const PointRecord& point : points) {
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    for (PointRecord point : {points[0], points[3], points[8], points[5]}) {
+        TALUS_CHECK(index.erase(point));
+        TALUS_CHECK(oracle.erase(point));
+        TALUS_CHECK(index.size() == oracle.size());
+    }
+
+    const PointRecord missing{123.0, 456.0, 99};
+    TALUS_CHECK(!index.erase(missing));
+    TALUS_CHECK(!oracle.erase(missing));
+    TALUS_CHECK(index.size() == oracle.size());
+
+    for (Box query : {
+        Box{{-10.0, -10.0}, {3.0, 3.0}},
+        Box{{7.0, 7.0}, {12.0, 12.0}},
+        Box{{-100.0, -100.0}, {100.0, 100.0}}
+    }) {
+        assert_same_ids(index.search(query), oracle.search(query));
+    }
+}
+
+// Test: test_spatial_index_erase_one_of_duplicate_values
+// Verifies erase removes a single matching value per call, preserving duplicate
+// equal records until each copy is explicitly erased.
+void test_spatial_index_erase_one_of_duplicate_values() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    const PointRecord duplicate{1.0, 2.0, 7};
+
+    index.insert(duplicate);
+    index.insert(duplicate);
+    index.insert(PointRecord{3.0, 4.0, 8});
+
+    TALUS_CHECK(index.erase(duplicate));
+    TALUS_CHECK(index.size() == 2);
+    TALUS_CHECK(index.search(Box{{1.0, 2.0}, {1.0, 2.0}}).size() == 1);
+
+    TALUS_CHECK(index.erase(duplicate));
+    TALUS_CHECK(index.size() == 1);
+    TALUS_CHECK(index.search(Box{{1.0, 2.0}, {1.0, 2.0}}).empty());
+}
+
+// Test: test_spatial_index_randomized_erase_matches_brute_force
+// Verifies randomized erases and subsequent rectangle queries stay identical to
+// the brute-force oracle across many condense, root-collapse, and reinsert paths.
+void test_spatial_index_randomized_erase_matches_brute_force() {
+    talus::SpatialIndex<PointRecord, double, 6> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    std::mt19937 rng(707);
+    std::uniform_real_distribution<double> coord(-1000.0, 1000.0);
+    std::uniform_real_distribution<double> extent(0.0, 250.0);
+    std::vector<PointRecord> points;
+
+    for (int id = 0; id < 500; ++id) {
+        PointRecord point{coord(rng), coord(rng), id};
+        points.push_back(point);
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    std::shuffle(points.begin(), points.end(), rng);
+    for (std::size_t i = 0; i < 260; ++i) {
+        TALUS_CHECK(index.erase(points[i]));
+        TALUS_CHECK(oracle.erase(points[i]));
+        TALUS_CHECK(index.size() == oracle.size());
     }
 
     for (std::size_t i = 0; i < 200; ++i) {
@@ -517,6 +624,16 @@ void test_spatial_index_throws_on_invalid_geometry() {
         threw = true;
     }
     TALUS_CHECK(threw);
+
+    // Invalid erased value.
+    threw = false;
+    try {
+        (void)index.erase(PointRecord{nan, 0.0, 4});
+    } catch (const talus::invalid_geometry&) {
+        threw = true;
+    }
+    TALUS_CHECK(threw);
+    TALUS_CHECK(index.size() == before);
 }
 
 // Large value type whose values are stored out of line (boxed). Has `.x/.y` for
@@ -526,6 +643,8 @@ struct BigRecord {
     double y = 0.0;
     int id = 0;
     std::array<char, 256> blob{};
+
+    constexpr bool operator==(const BigRecord&) const noexcept = default;
 };
 
 // Test: test_spatial_index_handles_large_boxed_values
@@ -567,6 +686,9 @@ int main() {
     test_spatial_index_search_matches_bounded_geometry_oracle();
     test_spatial_index_accepts_move_inserted_values();
     test_spatial_index_randomized_search_matches_brute_force();
+    test_spatial_index_erase_matches_brute_force_fixture();
+    test_spatial_index_erase_one_of_duplicate_values();
+    test_spatial_index_randomized_erase_matches_brute_force();
     test_spatial_index_grid_data_search_matches_brute_force();
     test_spatial_index_radius_search_matches_brute_force_fixture();
     test_spatial_index_radius_search_matches_bounded_geometry_oracle();

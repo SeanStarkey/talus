@@ -10,9 +10,10 @@ A zero-dependency, header-only C++20 spatial index library. Drop it in, include 
 
 > **Status: early development (v0.1.0, in progress).** Working today: automatic
 > type detection, `insert`, rectangle (`within`) queries, radius searches, and
-> single nearest-neighbor queries, validated against a brute-force oracle. Delete,
-> bulk loading, k-nearest queries, and the k-d tree are **planned, not yet
-> implemented** — see the [Roadmap](#roadmap).
+> single nearest-neighbor queries, and deletion with `erase`, validated against
+> a brute-force oracle. Bulk loading, k-nearest queries, custom query visitors,
+> and the k-d tree are **planned, not yet implemented** — see the
+> [Roadmap](#roadmap).
 > [PLAN.md](PLAN.md) is the source of truth for what is and isn't done.
 
 ---
@@ -42,6 +43,9 @@ int main() {
 
     // Radius query — returns std::vector<Restaurant>
     auto nearby = index.radius_search({-104.80, 38.82}, 0.03);
+
+    // Delete one equal stored value — returns true when a value was removed
+    bool erased = index.erase({-104.81, 38.84, "Pizza on Pikes"});
 }
 ```
 
@@ -62,15 +66,15 @@ int main() {
 | Custom query predicates / visitor | ◐ | ✓ | ✗ | ✓ |
 | R*-tree | ✓ | ✓ | ✗ | ✗ |
 | k-d tree | ◐ | ✗ | ✓ | ✗ |
-| Delete / removal | ◐ | ✓ | ✗ | ✓ |
+| Delete / removal | ✓ | ✓ | ✗ | ✓ |
 | Bulk loading | ◐ | ✓ | ✓ | ✗ |
 | N-dimensional (>2D) | ◐ | ✓ | ✓ | ✓ |
 | Serialization | ◐ | ✓ | ✓ | ✓ |
 
 **Talus column: ✓ available now · ◐ planned ([Roadmap](#roadmap)).** Competitor
 columns describe their released features. Talus ships insert, range query, radius
-search, and single nearest-neighbor query today; k-nearest, delete/reinsertion,
-custom query predicates, and STR bulk loading are near-term roadmap work, while
+search, single nearest-neighbor query, and deletion today; k-nearest, custom
+query predicates, and STR bulk loading are near-term roadmap work, while
 N-dimensional support and serialization are longer-range (post-1.0) items.
 *RTree.h* is the widely-vendored single-header R-tree (Guttman-style, e.g.
 `nushoin/RTree`): a plain R-tree with a callback-based rectangle search, removal,
@@ -161,6 +165,9 @@ std::size_t size() const noexcept;
 bool        empty() const noexcept;
 void        clear() noexcept;
 
+// Removal — deletes one equal stored value, returns true on success
+bool erase(const T& value);  // requires equality-comparable T
+
 // Rectangle query — returns std::vector<T> (requires copy-constructible T)
 std::vector<T> search(BoundingBox<Scalar> query) const;
 std::vector<T> within(BoundingBox<Scalar> query) const;  // alias for search
@@ -172,11 +179,15 @@ std::vector<T> radius_search(Point<Scalar> query, Scalar radius) const;
 std::optional<T> nearest_neighbor(Point<Scalar> query) const;
 ```
 
-`insert`, `search`, `within`, `radius_search`, and `nearest_neighbor` validate
-geometry at the boundary and throw `talus::invalid_geometry` (a
+`insert`, `erase`, `search`, `within`, `radius_search`, and `nearest_neighbor`
+validate geometry at the boundary and throw `talus::invalid_geometry` (a
 `std::invalid_argument`) when a coordinate is NaN or infinite, a radius is
 negative, or a box has `min > max`. A rejected `insert` leaves the index
-unchanged.
+unchanged, and a rejected `erase` leaves the index unchanged.
+
+`erase` removes one stored value equal to the argument. Bounds are extracted from
+the argument first, so deletion requires both matching bounds and value equality.
+If multiple equal values were inserted, each `erase` call removes one of them.
 
 Values are stored by value. Small values live inline in the tree nodes; values
 larger than 128 bytes are automatically stored out of line, so large payloads
@@ -189,9 +200,6 @@ pattern.)
 ```cpp
 // Bulk insertion via STR bulk load
 template<std::ranges::input_range R> void insert(R&& range);
-
-// Removal (delete + forced reinsertion)
-bool remove(const T& value);
 
 // k-nearest queries
 std::vector<T> nearest(Point<Scalar> query, std::size_t k) const;
@@ -271,10 +279,10 @@ To run it with the sample JSON import file:
 
 - [x] Geometry primitives (`Point`, `BoundingBox`, `Segment`)
 - [x] C++20 concept-based type detection
-- [x] R*-tree core (insert, range query, radius search, single nearest neighbor)
+- [x] R*-tree core (insert, range query, radius search, single nearest neighbor, delete)
 - [ ] k-nearest queries
 - [ ] Custom query predicates / visitor
-- [ ] Delete and reinsertion
+- [x] Delete and reinsertion
 - [ ] STR bulk loading
 - [ ] k-d tree
 - [ ] Benchmarks vs Boost.Geometry and nanoflann

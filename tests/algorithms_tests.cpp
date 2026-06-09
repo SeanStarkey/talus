@@ -880,6 +880,129 @@ void test_insert_with_split_keeps_tree_valid_after_root_split() {
     }
 }
 
+// Test: test_erase_leaf_root_removes_one_matching_entry
+// Verifies Delete finds a matching leaf-root entry, removes only that entry,
+// refreshes root bounds, and reports no subtree condensation.
+void test_erase_leaf_root_removes_one_matching_entry() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node, 8> pool;
+    Node root;
+    root.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 0);
+    root.append_value(Box{{1.0, 0.0}, {1.0, 0.0}}, 1);
+    root.append_value(Box{{2.0, 0.0}, {2.0, 0.0}}, 2);
+
+    auto result = talus::detail::erase(
+        root,
+        pool,
+        Box{{1.0, 0.0}, {1.0, 0.0}},
+        [](const int& value) {
+            return value == 1;
+        });
+
+    TALUS_CHECK(result.erased);
+    TALUS_CHECK(result.condensed_nodes == 0);
+    TALUS_CHECK(result.reinserted_entries == 0);
+    TALUS_CHECK(root.is_leaf());
+    TALUS_CHECK(root.count() == 2);
+    TALUS_CHECK(!leaf_contains_value(root, 1));
+    TALUS_CHECK(leaf_contains_value(root, 0));
+    TALUS_CHECK(leaf_contains_value(root, 2));
+    TALUS_CHECK((root.bounds() == Box{{0.0, 0.0}, {2.0, 0.0}}));
+}
+
+// Test: test_erase_returns_false_when_no_entry_matches
+// Verifies Delete leaves the tree untouched when candidate bounds exist but
+// the caller predicate rejects the stored value.
+void test_erase_returns_false_when_no_entry_matches() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node, 8> pool;
+    Node root;
+    root.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 0);
+    root.append_value(Box{{1.0, 0.0}, {1.0, 0.0}}, 1);
+
+    auto result = talus::detail::erase(
+        root,
+        pool,
+        Box{{1.0, 0.0}, {1.0, 0.0}},
+        [](const int& value) {
+            return value == 99;
+        });
+
+    TALUS_CHECK(!result.erased);
+    TALUS_CHECK(root.count() == 2);
+    TALUS_CHECK(leaf_contains_value(root, 0));
+    TALUS_CHECK(leaf_contains_value(root, 1));
+}
+
+// Test: test_erase_condenses_underfull_child_and_collapses_root
+// Verifies Delete detaches an underfull non-root leaf, reinserts its remaining
+// entries, destroys the detached subtree, and collapses a one-child root.
+void test_erase_condenses_underfull_child_and_collapses_root() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node, 8> pool;
+    Node root(false);
+    Node* left = pool.create();
+    Node* right = pool.create();
+
+    left->append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 0);
+    left->append_value(Box{{1.0, 0.0}, {1.0, 0.0}}, 1);
+    right->append_value(Box{{100.0, 0.0}, {100.0, 0.0}}, 100);
+    right->append_value(Box{{101.0, 0.0}, {101.0, 0.0}}, 101);
+    root.append_child(left->bounds(), left);
+    root.append_child(right->bounds(), right);
+
+    auto result = talus::detail::erase(
+        root,
+        pool,
+        Box{{0.0, 0.0}, {0.0, 0.0}},
+        [](const int& value) {
+            return value == 0;
+        });
+
+    TALUS_CHECK(result.erased);
+    TALUS_CHECK(result.condensed_nodes == 1);
+    TALUS_CHECK(result.reinserted_entries == 1);
+    TALUS_CHECK(root.is_leaf());
+    TALUS_CHECK(root.parent() == nullptr);
+    TALUS_CHECK(root.count() == 3);
+    TALUS_CHECK(!leaf_contains_value(root, 0));
+    for (int value : {1, 100, 101}) {
+        TALUS_CHECK(leaf_contains_value(root, value));
+    }
+    TALUS_CHECK((root.bounds() == Box{{1.0, 0.0}, {101.0, 0.0}}));
+    TALUS_CHECK(pool.empty());
+}
+
+// Test: test_erase_move_only_leaf_value
+// Verifies Delete works for move-only values when the caller supplies a
+// predicate, matching the relocation requirements used by split and condense.
+void test_erase_move_only_leaf_value() {
+    using Node = talus::detail::RTreeNode<MoveOnlyValue, double, 4>;
+
+    talus::detail::PoolAllocator<Node, 8> pool;
+    Node root;
+    root.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, MoveOnlyValue{0});
+    root.append_value(Box{{1.0, 0.0}, {1.0, 0.0}}, MoveOnlyValue{1});
+    root.append_value(Box{{2.0, 0.0}, {2.0, 0.0}}, MoveOnlyValue{2});
+
+    auto result = talus::detail::erase(
+        root,
+        pool,
+        Box{{1.0, 0.0}, {1.0, 0.0}},
+        [](const MoveOnlyValue& value) {
+            return value.id == 1;
+        });
+
+    TALUS_CHECK(result.erased);
+    TALUS_CHECK(root.count() == 2);
+    for (const auto& entry : root.values()) {
+        TALUS_CHECK(entry.value().id != 1);
+    }
+}
+
 // Test: test_search_empty_root_returns_no_matches
 // Verifies Search handles an empty tree without invoking the result visitor.
 void test_search_empty_root_returns_no_matches() {
@@ -1187,6 +1310,10 @@ int main() {
     test_adjust_tree_attaches_split_sibling_to_parent();
     test_adjust_tree_propagates_parent_split_to_new_root();
     test_insert_with_split_keeps_tree_valid_after_root_split();
+    test_erase_leaf_root_removes_one_matching_entry();
+    test_erase_returns_false_when_no_entry_matches();
+    test_erase_condenses_underfull_child_and_collapses_root();
+    test_erase_move_only_leaf_value();
     test_search_empty_root_returns_no_matches();
     test_search_leaf_reports_intersecting_values();
     test_search_internal_prunes_disjoint_children();

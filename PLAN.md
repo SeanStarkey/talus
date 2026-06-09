@@ -21,8 +21,8 @@ to operate on in-source builds.
 The R-tree implementation has storage primitives, the first algorithm slice, and
 the minimal public wrapper. Node layout, overlap-aware ChooseLeaf, non-splitting
 Insert, the low-level SplitNode primitive, AdjustTree split propagation, Search,
-NearestNeighbor, RadiusSearch, and public `SpatialIndex`
-insert/search/nearest-neighbor/radius-search are in place. ChooseSubtree and the
+NearestNeighbor, RadiusSearch, Delete, and public `SpatialIndex`
+insert/search/nearest-neighbor/radius-search/erase are in place. ChooseSubtree and the
 split-index selection use a margin (half-perimeter) tie-breaker so point and
 axis-aligned data — where bounding boxes have zero area — are still ranked
 spatially instead of collapsing to the entry-count fallback.
@@ -116,6 +116,8 @@ Completed:
   - `radius_search` for point-to-bounds radius queries
   - `nearest_neighbor` for point-to-bounds nearest queries, returning
     `std::optional<T>`
+  - `erase` for deleting one equality-comparable stored value, with internal
+    CondenseTree handling for underfull nodes
   - move construction / move assignment — the root is pool-allocated (created
     lazily on first insert) so node storage is address-stable across a move;
     copying stays deleted
@@ -141,7 +143,7 @@ API is covered by oracle tests.
 After Insert, Search, NearestNeighbor, and RadiusSearch are solid, add to `algorithms.hpp`:
 
 1. Completed: Radius search
-2. Delete
+2. Completed: Delete
 3. STR bulk load
 4. k-nearest (k>1) queries
 5. Custom query predicates / visitor traversal
@@ -195,7 +197,7 @@ comparison. They are intentionally deferred past the v0.1.x line.
 
 ## Next Concrete Task
 
-Continue with the remaining R*-tree algorithms after public radius search is
-stable. Next, implement Delete in `include/talus/detail/algorithms.hpp`, expose
+Continue with the remaining R*-tree algorithms after public delete is stable.
+Next, implement STR bulk load in `include/talus/detail/algorithms.hpp`, expose
 the matching public wrapper method, and compare results against the brute-force
 oracle.
