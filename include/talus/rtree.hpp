@@ -131,10 +131,13 @@ public:
 
     /// @brief Removes one stored value equal to `value`.
     ///
-    /// Returns true when a matching value was found and erased. Bounds are
-    /// extracted from `value`, so only entries with matching bounds and value
-    /// equality are eligible. Underfull nodes are condensed internally and their
-    /// remaining entries are reinserted.
+    /// Returns true when a matching value was found and erased. A stored entry
+    /// matches only when it compares equal to `value` AND its stored bounds are
+    /// exactly equal (not merely overlapping) to the bounds extracted from
+    /// `value`. Because bounds are re-extracted deterministically from the
+    /// value, erasing a previously inserted value always satisfies the bounds
+    /// requirement despite the floating-point comparison. Underfull nodes are
+    /// condensed internally and their remaining entries are reinserted.
     ///
     /// Exception safety: basic guarantee, provided `T` is nothrow-move-
     /// constructible (large values stored boxed always are). If an allocation
