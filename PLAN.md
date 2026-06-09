@@ -143,6 +143,8 @@ After Insert, Search, NearestNeighbor, and RadiusSearch are solid, add to `algor
 1. Completed: Radius search
 2. Delete
 3. STR bulk load
+4. k-nearest (k>1) queries
+5. Custom query predicates / visitor traversal
 
 ### 8. Add Examples and Benchmarks
 
@@ -155,6 +157,30 @@ After correctness is established:
 - Completed: add Colorado 14ers lat/lon sample JSON data for the driver.
 - Add examples for custom coordinate extractors.
 - Add benchmarks for insertion, rectangular search, nearest neighbor, and bulk loading.
+
+### 9. Longer-range / exploratory (post-1.0)
+
+These are larger, lower-priority efforts surfaced in the README "Why Talus"
+comparison. They are intentionally deferred past the v0.1.x line.
+
+- **Index serialization (save/load).** Pairs naturally with STR bulk load (load
+  = read entries, bulk-build). The node layout already cooperates: entries are
+  `bounds + value` / `bounds + child*` with only pool-internal pointers, and
+  PLAN already commits to a pointer-free persistent format. The open design
+  question is the user value `T`: start with a trivially-copyable-only API
+  (`static_assert(std::is_trivially_copyable_v<T>)`), then add a user-provided
+  serialize/deserialize hook (same escape-hatch pattern as `CoordExtractor`) for
+  richer payloads. Additive — a new `save()`/`load()` on `SpatialIndex` plus
+  tests; no rewrite.
+- **N-dimensional points and boxes.** A foundational change, not a bolt-on:
+  `geometry.hpp` (`Point`, every `BoundingBox` method) is hand-written over
+  `.x`/`.y`, `concepts.hpp` field-detection probes `.x`/`.y`, and the R*-tree
+  split-axis loop assumes 2 axes. Generalizing means `std::array<Scalar, N>`
+  coordinates and looping every per-axis operation over N. The harder part is
+  that zero-boilerplate auto-detection does not generalize past 2-3 named fields
+  — dimensions >2 would lean on the `CoordExtractor` adapter rather than field
+  detection. Likely a 2.0 effort with its own design pass (compile-time `N`
+  template parameter, 2D auto-detection kept as a fast path).
 
 ## Next Concrete Task
 

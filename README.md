@@ -54,17 +54,24 @@ int main() {
 | Zero dependencies | ✓ | ✗ | ✓ |
 | Header-only | ✓ | ✓ | ✓ |
 | No adapter boilerplate | ✓ | ✗ | ✗ |
+| C++20 concepts API | ✓ | ✗ | ✗ |
 | Range queries | ✓ | ✓ | ✗ |
 | Nearest neighbor | ✓ | ✓ | ✓ |
-| Radius search | ✓ | ✓ | partial |
+| k-nearest (k>1) | ◐ | ✓ | ✓ |
+| Radius search | ✓ | ✓ | ✓ |
+| Custom query predicates / visitor | ◐ | ✓ | ✗ |
 | R*-tree | ✓ | ✓ | ✗ |
 | k-d tree | ◐ | ✗ | ✓ |
-| C++20 concepts API | ✓ | ✗ | ✗ |
+| Delete / removal | ◐ | ✓ | ✗ |
+| Bulk loading | ◐ | ✓ | ✓ |
+| N-dimensional (>2D) | ◐ | ✓ | ✓ |
+| Serialization | ◐ | ✓ | ✓ |
 
 **Talus column: ✓ available now · ◐ planned ([Roadmap](#roadmap)).** Competitor
-columns describe their released features. The R\*-tree ships with insert, range
-query, radius search, and single nearest-neighbor query today; forced reinsertion
-and delete are still on the roadmap.
+columns describe their released features. Talus ships insert, range query, radius
+search, and single nearest-neighbor query today; k-nearest, delete/reinsertion,
+custom query predicates, and STR bulk loading are near-term roadmap work, while
+N-dimensional support and serialization are longer-range (post-1.0) items.
 
 ---
 
@@ -257,10 +264,18 @@ To run it with the sample JSON import file:
 - [x] C++20 concept-based type detection
 - [x] R*-tree core (insert, range query, radius search, single nearest neighbor)
 - [ ] k-nearest queries
+- [ ] Custom query predicates / visitor
 - [ ] Delete and reinsertion
 - [ ] STR bulk loading
 - [ ] k-d tree
 - [ ] Benchmarks vs Boost.Geometry and nanoflann
+
+### Longer-range / exploratory
+
+- [ ] Index serialization (save/load) — builds on STR bulk loading; trivially
+  copyable values first, with a user-provided hook for richer payloads
+- [ ] N-dimensional points and boxes — a foundational change to the geometry
+  primitives and type detection; likely a 2.0 effort
 
 ---
 
