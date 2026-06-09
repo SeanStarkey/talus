@@ -136,6 +136,13 @@ public:
     /// equality are eligible. Underfull nodes are condensed internally and their
     /// remaining entries are reinserted.
     ///
+    /// Exception safety: basic guarantee, provided `T` is nothrow-move-
+    /// constructible (large values stored boxed always are). If an allocation
+    /// fails mid-condense, entries detached for reinsertion may be lost, but
+    /// the index stays valid for further use and `size()` is resynchronized to
+    /// the surviving entries before the exception propagates. If `T`'s move
+    /// constructor throws, no guarantee is provided.
+    ///
     /// @throws invalid_geometry if the value's extracted bounds are invalid.
     bool erase(const T& value)
         requires std::equality_comparable<T> {
@@ -148,21 +155,26 @@ public:
             return false;
         }
 
-        const auto result = detail::erase(
-            *root_,
-            pool_,
-            bounds,
-            [&](const T& stored) {
-                return stored == value;
-            });
-        root_ = result.root;
-        if (result.erased) {
-            --size_;
+        try {
+            const auto result = detail::erase(
+                *root_,
+                pool_,
+                bounds,
+                [&](const T& stored) {
+                    return stored == value;
+                });
+            root_ = result.root;
+            if (result.erased) {
+                --size_;
+            }
+            if (size_ == 0 && root_ != nullptr) {
+                root_->reset_as_leaf();
+            }
+            return result.erased;
+        } catch (...) {
+            size_ = detail::count_values(*root_);
+            throw;
         }
-        if (size_ == 0 && root_ != nullptr) {
-            root_->reset_as_leaf();
-        }
-        return result.erased;
     }
 
     /// @brief Returns copies of all values whose bounds intersect `query_bounds`.

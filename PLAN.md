@@ -118,6 +118,13 @@ Completed:
     `std::optional<T>`
   - `erase` for deleting one equality-comparable stored value, with internal
     CondenseTree handling for underfull nodes
+  - `erase` exception safety — basic guarantee for nothrow-move `T`: on
+    allocation failure mid-condense the tree is repaired to a valid state
+    (aborted-split overflow entries are dropped), `size()` is resynchronized
+    via `detail::count_values`, and the index stays fully usable; entries
+    detached for reinsertion may be lost. Verified by allocation-failure
+    injection sweeps in `tests/rtree_exception_tests.cpp` (countdown-failing
+    global `operator new` in a dedicated test binary)
   - move construction / move assignment — the root is pool-allocated (created
     lazily on first insert) so node storage is address-stable across a move;
     copying stays deleted
@@ -174,6 +181,15 @@ comparison. They are intentionally deferred past the v0.1.x line.
   serialize/deserialize hook (same escape-hatch pattern as `CoordExtractor`) for
   richer payloads. Additive — a new `save()`/`load()` on `SpatialIndex` plus
   tests; no rewrite.
+- **Lossless `erase` under allocation failure.** Today `erase` gives the basic
+  guarantee: on `bad_alloc` mid-condense, detached entries may be dropped
+  (size stays accurate). Upgrading to "no entry loss" means pre-reserving
+  worst-case pool capacity before mutating — orphan count is bounded by
+  `condensed_nodes × MaxChildren` entries and each reinsert splits at most
+  `tree_height` nodes — which needs a `reserve(n)` API on `PoolAllocator`
+  plus the reservation math, and a nothrow-move constraint on `T` so the only
+  throw source is allocation. Boost.Geometry's rtree documents the same
+  basic-guarantee caveat, so this is hardening, not a competitive gap.
 - **N-dimensional points and boxes.** A foundational change, not a bolt-on:
   `geometry.hpp` (`Point`, every `BoundingBox` method) is hand-written over
   `.x`/`.y`, `concepts.hpp` field-detection probes `.x`/`.y`, and the R*-tree

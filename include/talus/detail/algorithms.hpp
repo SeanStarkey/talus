@@ -750,13 +750,58 @@ std::size_t reinsert_entries(
     return reinserted;
 }
 
+/// @brief Drops overflow-slot entries left behind by an aborted split.
+///
+/// When `insert_with_split` fails to allocate a split sibling, exactly one node
+/// on the insertion path may be left holding an entry in its overflow slot.
+/// Removing that entry (and, for internal nodes, unreachably detaching its
+/// subtree) restores the capacity invariant so the tree stays valid for later
+/// operations. Entry loss here is covered by erase's basic exception guarantee.
+template<typename T, typename Scalar, std::size_t MaxChildren>
+void drop_overflow_entries(RTreeNode<T, Scalar, MaxChildren>& node) {
+    if (node.has_overflow()) {
+        node.remove_at(node.count() - 1);
+    }
+
+    if (node.is_internal()) {
+        for (const auto& entry : node.children()) {
+            TALUS_ASSERT(entry.child != nullptr);
+            drop_overflow_entries(*entry.child);
+        }
+    }
+}
+
 } // namespace delete_detail
+
+/// @brief Returns the number of value entries reachable from `node`.
+///
+/// Never allocates or throws, so it is safe to call from exception-recovery
+/// paths that resynchronize cached size counters after a failed mutation.
+template<typename T, typename Scalar, std::size_t MaxChildren>
+[[nodiscard]] std::size_t count_values(const RTreeNode<T, Scalar, MaxChildren>& node) noexcept {
+    if (node.is_leaf()) {
+        return node.count();
+    }
+
+    std::size_t total = 0;
+    for (const auto& entry : node.children()) {
+        TALUS_ASSERT(entry.child != nullptr);
+        total += count_values(*entry.child);
+    }
+    return total;
+}
 
 /// @brief Removes one leaf entry matching `entry_bounds` and `predicate`.
 ///
 /// After removal, underfull non-root nodes are detached, their remaining leaf
 /// entries are reinserted, and a root with a single child is collapsed. This is
 /// the classic R-tree CondenseTree deletion flow.
+///
+/// Exception safety: basic guarantee, provided `T` is nothrow-move-
+/// constructible. If an allocation fails while condensing or reinserting, the
+/// tree is left structurally valid (any aborted-split overflow is repaired and
+/// root bounds are recomputed) but entries detached for reinsertion may be
+/// lost; callers caching an entry count must resynchronize via `count_values`.
 template<typename T, typename Scalar, std::size_t MaxChildren, std::size_t BlockSize, typename Predicate>
 RTreeDeleteResult<RTreeNode<T, Scalar, MaxChildren>> erase(
     RTreeNode<T, Scalar, MaxChildren>& root,
@@ -782,33 +827,39 @@ RTreeDeleteResult<RTreeNode<T, Scalar, MaxChildren>> erase(
 
     std::vector<entry_type> orphaned_entries;
     std::size_t condensed_nodes = 0;
+    std::size_t reinserted = 0;
 
-    while (node != &root) {
-        node_type* parent = node->parent();
-        TALUS_ASSERT(parent != nullptr);
+    try {
+        while (node != &root) {
+            node_type* parent = node->parent();
+            TALUS_ASSERT(parent != nullptr);
 
-        if (node->underfull()) {
+            if (node->underfull()) {
+                const std::size_t node_index = find_child_index(*parent, node);
+                parent->remove_at(node_index);
+                delete_detail::collect_subtree_entries(*node, pool, orphaned_entries);
+                ++condensed_nodes;
+                node = parent;
+                continue;
+            }
+
             const std::size_t node_index = find_child_index(*parent, node);
-            parent->remove_at(node_index);
-            delete_detail::collect_subtree_entries(*node, pool, orphaned_entries);
-            ++condensed_nodes;
+            parent->update_bounds(node_index, node->bounds());
             node = parent;
-            continue;
         }
 
-        const std::size_t node_index = find_child_index(*parent, node);
-        parent->update_bounds(node_index, node->bounds());
-        node = parent;
+        root.recompute_bounds();
+        [[maybe_unused]] const bool collapsed_before_reinsert =
+            delete_detail::collapse_root_if_needed(root, pool);
+        reinserted = delete_detail::reinsert_entries(root, pool, orphaned_entries);
+        [[maybe_unused]] const bool collapsed_after_reinsert =
+            delete_detail::collapse_root_if_needed(root, pool);
+        root.recompute_bounds();
+    } catch (...) {
+        delete_detail::drop_overflow_entries(root);
+        root.recompute_bounds();
+        throw;
     }
-
-    root.recompute_bounds();
-    [[maybe_unused]] const bool collapsed_before_reinsert =
-        delete_detail::collapse_root_if_needed(root, pool);
-    const std::size_t reinserted =
-        delete_detail::reinsert_entries(root, pool, orphaned_entries);
-    [[maybe_unused]] const bool collapsed_after_reinsert =
-        delete_detail::collapse_root_if_needed(root, pool);
-    root.recompute_bounds();
 
     return {&root, true, condensed_nodes, reinserted};
 }
