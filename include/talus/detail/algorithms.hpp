@@ -816,8 +816,7 @@ RTreeDeleteResult<RTreeNode<T, Scalar, MaxChildren>> erase(
     static_assert(node_type::can_relocate_value_entries,
         "erase requires move-constructible value entries");
 
-    Predicate predicate_ref = std::forward<Predicate>(predicate);
-    auto located = delete_detail::find_leaf_entry(root, entry_bounds, predicate_ref);
+    auto located = delete_detail::find_leaf_entry(root, entry_bounds, predicate);
     if (located.leaf == nullptr) {
         return {&root, false, 0, 0};
     }
