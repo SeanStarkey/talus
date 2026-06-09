@@ -180,7 +180,18 @@ comparison. They are intentionally deferred past the v0.1.x line.
   that zero-boilerplate auto-detection does not generalize past 2-3 named fields
   — dimensions >2 would lean on the `CoordExtractor` adapter rather than field
   detection. Likely a 2.0 effort with its own design pass (compile-time `N`
-  template parameter, 2D auto-detection kept as a fast path).
+  template parameter, 2D auto-detection kept as a fast path). Prefer
+  `std::array<Scalar, N>` over `std::tuple`: coordinates are homogeneous and the
+  per-axis loops want runtime `coords[axis]` indexing, which a tuple would force
+  into `std::get<I>` template recursion for no benefit. Two consequences to plan
+  for: (1) `area()` becomes a volume (product over N axes), which underflows
+  toward zero for thin boxes in high N and degrades the area-based split
+  heuristics — this is the curse-of-dimensionality reason production R*-trees cap
+  around N ≈ 10-20; `margin()` (a sum over axes) generalizes cleanly and is less
+  affected. (2) `BoundingBox` grows linearly with N, so the `alignas(64)`
+  "one node = one cache line" invariant in `node.hpp` only holds at low N — a
+  node stores `MaxChildren` boxes, so node size scales with `MaxChildren × N`
+  and spills multiple lines as N grows.
 
 ## Next Concrete Task
 
