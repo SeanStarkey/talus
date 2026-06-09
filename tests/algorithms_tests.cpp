@@ -989,6 +989,84 @@ void test_search_split_insert_tree_matches_deterministic_query() {
     TALUS_CHECK((matches == std::vector<int>{100, 101, 102}));
 }
 
+// Test: test_radius_search_empty_root_returns_no_matches
+// Verifies RadiusSearch handles an empty tree without invoking the result
+// visitor.
+void test_radius_search_empty_root_returns_no_matches() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root;
+    std::vector<int> matches;
+
+    const std::size_t count = talus::detail::radius_search(
+        root,
+        talus::Point<double>{0.0, 0.0},
+        10.0,
+        [&](const int& value) {
+            matches.push_back(value);
+        });
+
+    TALUS_CHECK(count == 0);
+    TALUS_CHECK(matches.empty());
+}
+
+// Test: test_radius_search_leaf_reports_values_within_radius
+// Verifies RadiusSearch visits leaf entries whose stored bounds have minimum
+// point-to-box distance inside the radius, including the exact boundary.
+void test_radius_search_leaf_reports_values_within_radius() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root;
+    root.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 0);
+    root.append_value(Box{{3.0, 4.0}, {3.0, 4.0}}, 1);
+    root.append_value(Box{{6.0, 8.0}, {6.0, 8.0}}, 2);
+    root.append_value(Box{{-2.0, -1.0}, {-1.0, 1.0}}, 3);
+
+    std::vector<int> matches;
+    const std::size_t count = talus::detail::radius_search(
+        root,
+        talus::Point<double>{0.0, 0.0},
+        5.0,
+        [&](const int& value) {
+            matches.push_back(value);
+        });
+
+    std::sort(matches.begin(), matches.end());
+    TALUS_CHECK(count == 3);
+    TALUS_CHECK((matches == std::vector<int>{0, 1, 3}));
+}
+
+// Test: test_radius_search_internal_prunes_distant_children
+// Verifies RadiusSearch descends only through child bounds whose minimum
+// distance to the query point is inside the requested radius.
+void test_radius_search_internal_prunes_distant_children() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root(false);
+    Node left;
+    Node right;
+
+    left.append_value(Box{{0.0, 0.0}, {0.0, 0.0}}, 0);
+    left.append_value(Box{{3.0, 4.0}, {3.0, 4.0}}, 1);
+    right.append_value(Box{{100.0, 100.0}, {101.0, 101.0}}, 2);
+
+    root.append_child(left.bounds(), &left);
+    root.append_child(right.bounds(), &right);
+
+    std::vector<int> matches;
+    const std::size_t count = talus::detail::radius_search(
+        root,
+        talus::Point<double>{0.0, 0.0},
+        5.0,
+        [&](const int& value) {
+            matches.push_back(value);
+        });
+
+    std::sort(matches.begin(), matches.end());
+    TALUS_CHECK(count == 2);
+    TALUS_CHECK((matches == std::vector<int>{0, 1}));
+}
+
 // Test: test_nearest_neighbor_empty_root_returns_null
 // Verifies NearestNeighbor reports no value for an empty tree and does not try
 // to inspect leaf storage when the root has no entries.
@@ -1113,6 +1191,9 @@ int main() {
     test_search_leaf_reports_intersecting_values();
     test_search_internal_prunes_disjoint_children();
     test_search_split_insert_tree_matches_deterministic_query();
+    test_radius_search_empty_root_returns_no_matches();
+    test_radius_search_leaf_reports_values_within_radius();
+    test_radius_search_internal_prunes_distant_children();
     test_nearest_neighbor_empty_root_returns_null();
     test_nearest_neighbor_leaf_uses_entry_bounds();
     test_nearest_neighbor_internal_tree_finds_best_leaf_entry();

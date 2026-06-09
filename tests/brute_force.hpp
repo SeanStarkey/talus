@@ -63,6 +63,18 @@ public:
         return search(query_bounds);
     }
 
+    [[nodiscard]] std::vector<T> radius_search(Point<Scalar> query, Scalar radius) const
+        requires std::copy_constructible<T> {
+        const Scalar radius_sq = radius * radius;
+        std::vector<T> matches;
+        for (const T& value : values_) {
+            if (bounding_box_of<Scalar>(value).min_sq_distance(query) <= radius_sq) {
+                matches.push_back(value);
+            }
+        }
+        return matches;
+    }
+
     [[nodiscard]] std::optional<T> nearest_neighbor(Point<Scalar> query) const
         requires std::copy_constructible<T> {
         const T* nearest = nullptr;

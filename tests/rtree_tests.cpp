@@ -5,6 +5,7 @@
 #include <algorithm>
 #include "test_check.hpp"
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <optional>
@@ -224,6 +225,90 @@ void test_spatial_index_grid_data_search_matches_brute_force() {
     }
 }
 
+// Test: test_spatial_index_radius_search_matches_brute_force_fixture
+// Verifies deterministic point radius searches match the brute-force oracle
+// after enough inserts to force public wrapper split propagation.
+void test_spatial_index_radius_search_matches_brute_force_fixture() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+
+    const std::vector<PointRecord> points{
+        {-20.0, -20.0, 1},
+        {-4.0, -2.0, 2},
+        {0.0, 0.0, 3},
+        {3.0, 4.0, 4},
+        {10.0, 10.0, 5},
+        {50.0, 0.0, 6},
+        {80.0, 80.0, 7}
+    };
+
+    for (const PointRecord& point : points) {
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    assert_same_ids(
+        index.radius_search(talus::Point<double>{0.0, 0.0}, 5.0),
+        oracle.radius_search(talus::Point<double>{0.0, 0.0}, 5.0));
+    assert_same_ids(
+        index.radius_search(talus::Point<double>{50.0, 4.0}, 4.0),
+        oracle.radius_search(talus::Point<double>{50.0, 4.0}, 4.0));
+    assert_same_ids(
+        index.radius_search(talus::Point<double>{100.0, 100.0}, 1.0),
+        oracle.radius_search(talus::Point<double>{100.0, 100.0}, 1.0));
+}
+
+// Test: test_spatial_index_radius_search_matches_bounded_geometry_oracle
+// Verifies radius search uses each value's stored bounding box, so records that
+// contain the query point match with zero distance and boundary hits are kept.
+void test_spatial_index_radius_search_matches_bounded_geometry_oracle() {
+    talus::SpatialIndex<BoundedRecord, double, 4> index;
+    talus::test::BruteForceIndex<BoundedRecord, double> oracle;
+
+    const std::vector<BoundedRecord> records{
+        {1, {{0.0, 0.0}, {2.0, 2.0}}},
+        {2, {{10.0, 10.0}, {20.0, 20.0}}},
+        {3, {{30.0, 30.0}, {31.0, 31.0}}},
+        {4, {{-20.0, -20.0}, {-10.0, -10.0}}},
+        {5, {{5.0, 40.0}, {8.0, 50.0}}}
+    };
+
+    for (const BoundedRecord& record : records) {
+        index.insert(record);
+        oracle.insert(record);
+    }
+
+    assert_same_ids(
+        index.radius_search(talus::Point<double>{15.0, 12.0}, 0.0),
+        oracle.radius_search(talus::Point<double>{15.0, 12.0}, 0.0));
+    assert_same_ids(
+        index.radius_search(talus::Point<double>{28.0, 29.0}, std::sqrt(5.0)),
+        oracle.radius_search(talus::Point<double>{28.0, 29.0}, std::sqrt(5.0)));
+}
+
+// Test: test_spatial_index_randomized_radius_search_matches_brute_force
+// Verifies radius queries agree with the brute-force oracle across randomized
+// point fixtures and many split/subtree layouts.
+void test_spatial_index_randomized_radius_search_matches_brute_force() {
+    talus::SpatialIndex<PointRecord, double, 6> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    std::mt19937 rng(5150);
+    std::uniform_real_distribution<double> coord(-1000.0, 1000.0);
+    std::uniform_real_distribution<double> radius(0.0, 250.0);
+
+    for (int id = 0; id < 500; ++id) {
+        PointRecord point{coord(rng), coord(rng), id};
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    for (std::size_t i = 0; i < 200; ++i) {
+        const talus::Point<double> query{coord(rng), coord(rng)};
+        const double r = radius(rng);
+        assert_same_ids(index.radius_search(query, r), oracle.radius_search(query, r));
+    }
+}
+
 // Test: test_spatial_index_nearest_neighbor_matches_brute_force_fixture
 // Verifies deterministic nearest-neighbor queries match the linear-scan oracle
 // after enough inserts to force split propagation and an internal root.
@@ -415,6 +500,23 @@ void test_spatial_index_throws_on_invalid_geometry() {
         threw = true;
     }
     TALUS_CHECK(threw);
+
+    // Invalid radius-search query and radius.
+    threw = false;
+    try {
+        (void)index.radius_search(talus::Point<double>{0.0, nan}, 1.0);
+    } catch (const talus::invalid_geometry&) {
+        threw = true;
+    }
+    TALUS_CHECK(threw);
+
+    threw = false;
+    try {
+        (void)index.radius_search(talus::Point<double>{0.0, 0.0}, -1.0);
+    } catch (const talus::invalid_geometry&) {
+        threw = true;
+    }
+    TALUS_CHECK(threw);
 }
 
 // Large value type whose values are stored out of line (boxed). Has `.x/.y` for
@@ -466,6 +568,9 @@ int main() {
     test_spatial_index_accepts_move_inserted_values();
     test_spatial_index_randomized_search_matches_brute_force();
     test_spatial_index_grid_data_search_matches_brute_force();
+    test_spatial_index_radius_search_matches_brute_force_fixture();
+    test_spatial_index_radius_search_matches_bounded_geometry_oracle();
+    test_spatial_index_randomized_radius_search_matches_brute_force();
     test_spatial_index_nearest_neighbor_matches_brute_force_fixture();
     test_spatial_index_nearest_neighbor_matches_bounded_geometry_oracle();
     test_spatial_index_randomized_nearest_neighbor_matches_brute_force();

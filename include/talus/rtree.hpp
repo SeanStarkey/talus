@@ -156,6 +156,30 @@ public:
         return search(query_bounds);
     }
 
+    /// @brief Returns copies of all values whose bounds are within `radius` of `query`.
+    ///
+    /// Distance is measured from the query point to each stored value's bounds;
+    /// bounded geometries containing the query point have distance zero. Values
+    /// exactly on the radius boundary are included.
+    ///
+    /// @throws invalid_geometry if the query coordinates or radius are NaN or
+    /// infinite, or if `radius` is negative.
+    [[nodiscard]] std::vector<T> radius_search(Point<Scalar> query, Scalar radius) const
+        requires std::copy_constructible<T> {
+        if (!std::isfinite(query.x) || !std::isfinite(query.y)
+            || !std::isfinite(radius) || radius < Scalar{0}) {
+            throw invalid_geometry{};
+        }
+
+        std::vector<T> matches;
+        if (root_ != nullptr) {
+            detail::radius_search(*root_, query, radius, [&](const T& value) {
+                matches.push_back(value);
+            });
+        }
+        return matches;
+    }
+
     /// @brief Returns the value whose bounds are nearest to `query`, if any.
     ///
     /// Distance is measured from the query point to each stored value's bounds;

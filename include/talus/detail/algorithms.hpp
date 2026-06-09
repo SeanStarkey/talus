@@ -668,6 +668,57 @@ std::size_t search(
     return search_detail::search_impl(root, query_bounds, visitor);
 }
 
+namespace radius_search_detail {
+
+template<typename T, typename Scalar, std::size_t MaxChildren, typename Visitor>
+std::size_t radius_search_impl(
+    const RTreeNode<T, Scalar, MaxChildren>& node,
+    Point<Scalar> query,
+    Scalar radius_sq,
+    Visitor& visitor) {
+    if (node.empty() || node.bounds().min_sq_distance(query) > radius_sq) {
+        return 0;
+    }
+
+    std::size_t matches = 0;
+    if (node.is_leaf()) {
+        for (const auto& entry : node.values()) {
+            if (entry.bounds.min_sq_distance(query) <= radius_sq) {
+                visitor(entry.value());
+                ++matches;
+            }
+        }
+        return matches;
+    }
+
+    for (const auto& entry : node.children()) {
+        TALUS_ASSERT(entry.child != nullptr);
+        if (entry.bounds.min_sq_distance(query) <= radius_sq) {
+            matches += radius_search_impl(*entry.child, query, radius_sq, visitor);
+        }
+    }
+    return matches;
+}
+
+} // namespace radius_search_detail
+
+/// @brief Visits each value whose stored bounds are within `radius` of `query`.
+///
+/// Distance is measured from the query point to each stored bounding box using
+/// squared Euclidean distance. Values whose bounds contain the query point have
+/// distance zero, and values exactly on the radius boundary are included.
+template<typename T, typename Scalar, std::size_t MaxChildren, typename Visitor>
+std::size_t radius_search(
+    const RTreeNode<T, Scalar, MaxChildren>& root,
+    Point<Scalar> query,
+    Scalar radius,
+    Visitor&& visitor) {
+    TALUS_ASSERT(radius >= Scalar{0});
+
+    const Scalar radius_sq = radius * radius;
+    return radius_search_detail::radius_search_impl(root, query, radius_sq, visitor);
+}
+
 namespace nearest_detail {
 
 template<typename T, typename Scalar, std::size_t MaxChildren>

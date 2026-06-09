@@ -21,8 +21,8 @@ to operate on in-source builds.
 The R-tree implementation has storage primitives, the first algorithm slice, and
 the minimal public wrapper. Node layout, overlap-aware ChooseLeaf, non-splitting
 Insert, the low-level SplitNode primitive, AdjustTree split propagation, Search,
-NearestNeighbor, and public `SpatialIndex` insert/search/nearest-neighbor are
-in place. ChooseSubtree and the
+NearestNeighbor, RadiusSearch, and public `SpatialIndex`
+insert/search/nearest-neighbor/radius-search are in place. ChooseSubtree and the
 split-index selection use a margin (half-perimeter) tie-breaker so point and
 axis-aligned data — where bounding boxes have zero area — are still ranked
 spatially instead of collapsing to the entry-count fallback.
@@ -113,6 +113,7 @@ Completed:
   - `clear`
   - rectangular `search`
   - `within` alias for the documented rectangular query spelling
+  - `radius_search` for point-to-bounds radius queries
   - `nearest_neighbor` for point-to-bounds nearest queries, returning
     `std::optional<T>`
   - move construction / move assignment — the root is pool-allocated (created
@@ -137,9 +138,9 @@ API is covered by oracle tests.
 
 ### 7. Implement Remaining R*-tree Algorithms
 
-After Insert, Search, and NearestNeighbor are solid, add to `algorithms.hpp`:
+After Insert, Search, NearestNeighbor, and RadiusSearch are solid, add to `algorithms.hpp`:
 
-1. Radius search
+1. Completed: Radius search
 2. Delete
 3. STR bulk load
 
@@ -157,7 +158,7 @@ After correctness is established:
 
 ## Next Concrete Task
 
-Continue with the remaining R*-tree algorithms after the public insert/search
-API is stable. Start with radius search in `include/talus/detail/algorithms.hpp`,
-then expose the matching public wrapper method and compare results against the
-brute-force oracle.
+Continue with the remaining R*-tree algorithms after public radius search is
+stable. Next, implement Delete in `include/talus/detail/algorithms.hpp`, expose
+the matching public wrapper method, and compare results against the brute-force
+oracle.
