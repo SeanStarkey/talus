@@ -49,29 +49,38 @@ int main() {
 
 ## Why Talus?
 
-| | Talus | Boost.Geometry | nanoflann |
-|---|---|---|---|
-| Zero dependencies | ✓ | ✗ | ✓ |
-| Header-only | ✓ | ✓ | ✓ |
-| No adapter boilerplate | ✓ | ✗ | ✗ |
-| C++20 concepts API | ✓ | ✗ | ✗ |
-| Range queries | ✓ | ✓ | ✗ |
-| Nearest neighbor | ✓ | ✓ | ✓ |
-| k-nearest (k>1) | ◐ | ✓ | ✓ |
-| Radius search | ✓ | ✓ | ✓ |
-| Custom query predicates / visitor | ◐ | ✓ | ✗ |
-| R*-tree | ✓ | ✓ | ✗ |
-| k-d tree | ◐ | ✗ | ✓ |
-| Delete / removal | ◐ | ✓ | ✗ |
-| Bulk loading | ◐ | ✓ | ✓ |
-| N-dimensional (>2D) | ◐ | ✓ | ✓ |
-| Serialization | ◐ | ✓ | ✓ |
+| | Talus | Boost.Geometry | nanoflann | RTree.h |
+|---|---|---|---|---|
+| Zero dependencies | ✓ | ✗ | ✓ | ✓ |
+| Header-only | ✓ | ✓ | ✓ | ✓ |
+| No adapter boilerplate | ✓ | ✗ | ✗ | ✗ |
+| C++20 concepts API | ✓ | ✗ | ✗ | ✗ |
+| Range queries | ✓ | ✓ | ✗ | ✓ |
+| Nearest neighbor | ✓ | ✓ | ✓ | ✗ |
+| k-nearest (k>1) | ◐ | ✓ | ✓ | ✗ |
+| Radius search | ✓ | ✓ | ✓ | ✗ |
+| Custom query predicates / visitor | ◐ | ✓ | ✗ | ✓ |
+| R*-tree | ✓ | ✓ | ✗ | ✗ |
+| k-d tree | ◐ | ✗ | ✓ | ✗ |
+| Delete / removal | ◐ | ✓ | ✗ | ✓ |
+| Bulk loading | ◐ | ✓ | ✓ | ✗ |
+| N-dimensional (>2D) | ◐ | ✓ | ✓ | ✓ |
+| Serialization | ◐ | ✓ | ✓ | ✓ |
 
 **Talus column: ✓ available now · ◐ planned ([Roadmap](#roadmap)).** Competitor
 columns describe their released features. Talus ships insert, range query, radius
 search, and single nearest-neighbor query today; k-nearest, delete/reinsertion,
 custom query predicates, and STR bulk loading are near-term roadmap work, while
 N-dimensional support and serialization are longer-range (post-1.0) items.
+*RTree.h* is the widely-vendored single-header R-tree (Guttman-style, e.g.
+`nushoin/RTree`): a plain R-tree with a callback-based rectangle search, removal,
+and save/load, configured through raw template parameters and min/max arrays
+rather than type detection.
+
+Out of scope for this table: heavier standalone R-tree libraries
+([libspatialindex](https://libspatialindex.org/)) and approximate
+nearest-neighbor libraries for high-dimensional vector search (FLANN, Annoy,
+hnswlib) solve a different problem than Talus's exact, low-dimensional queries.
 
 ---
 
