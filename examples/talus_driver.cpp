@@ -526,6 +526,32 @@ void search_index(const Index& index) {
     }
 }
 
+void radius_search(const Index& index) {
+    const Point query = read_query_point();
+    if (looks_like_reversed_lat_lon(query)) {
+        std::cout << "Note: that looks like latitude/longitude order. Talus queries use "
+                  << "x/longitude first and y/latitude second; try ("
+                  << query.y << ", " << query.x << ") if this result looks wrong.\n";
+    }
+
+    const double radius = read_double("radius: ");
+    if (radius < 0.0) {
+        throw std::runtime_error("radius must be non-negative");
+    }
+
+    std::vector<DriverGeometry> matches = index.radius_search(query, radius);
+    std::sort(matches.begin(), matches.end(), [](const DriverGeometry& lhs, const DriverGeometry& rhs) {
+        return lhs.id < rhs.id;
+    });
+
+    std::cout << "Radius query centered at (" << query.x << ", " << query.y
+              << ") with radius " << radius << " matched "
+              << matches.size() << " geometries.\n";
+    for (const DriverGeometry& geometry : matches) {
+        print_geometry(geometry);
+    }
+}
+
 void nearest_neighbor(const Index& index) {
     const Point query = read_query_point();
     if (looks_like_reversed_lat_lon(query)) {
@@ -583,9 +609,10 @@ void print_menu(const Index& index) {
         << "1. List loaded geometries\n"
         << "2. Search with bounding box\n"
         << "3. Nearest neighbor from x/lon, y/lat\n"
-        << "4. Import JSON file\n"
-        << "5. Clear index\n"
-        << "6. Show JSON import format\n"
+        << "4. Radius search from x/lon, y/lat\n"
+        << "5. Import JSON file\n"
+        << "6. Clear index\n"
+        << "7. Show JSON import format\n"
         << "0. Quit\n"
         << "Choice: ";
 }
@@ -623,12 +650,14 @@ int main(int argc, char** argv) {
                 } else if (choice == "3") {
                     nearest_neighbor(index);
                 } else if (choice == "4") {
-                    import_json(index, records);
+                    radius_search(index);
                 } else if (choice == "5") {
+                    import_json(index, records);
+                } else if (choice == "6") {
                     index.clear();
                     records.clear();
                     std::cout << "Index cleared.\n";
-                } else if (choice == "6") {
+                } else if (choice == "7") {
                     print_import_help();
                 } else if (choice == "0" || choice == "q" || choice == "quit") {
                     break;
