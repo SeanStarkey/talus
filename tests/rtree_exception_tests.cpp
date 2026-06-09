@@ -12,6 +12,7 @@
 #include "test_check.hpp"
 
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <new>
 #include <vector>
@@ -267,9 +268,33 @@ void test_erase_allocation_failure_index_remains_usable() {
     TALUS_CHECK(index.size() == recovered_size);
 }
 
+// Returns true when the replacement allocation operators are actually in
+// effect. Tools like Valgrind redirect the global allocation symbols to their
+// own interceptors, which silently disables countdown injection; probing at
+// runtime lets the binary skip under such tools instead of failing its
+// "injection actually fired" assertions.
+[[nodiscard]] bool injection_available() {
+    bool fired = false;
+    arm(0);
+    try {
+        delete new int{0};
+    } catch (const std::bad_alloc&) {
+        fired = true;
+    }
+    disarm();
+    return fired;
+}
+
 } // namespace
 
 int main() {
+    if (!injection_available()) {
+        std::fprintf(stderr,
+            "allocation-failure injection unavailable (global allocator symbols "
+            "intercepted, e.g. by Valgrind); skipping\n");
+        return 0;
+    }
+
     test_erase_allocation_failure_keeps_index_consistent();
     test_erase_allocation_failure_index_remains_usable();
     return 0;

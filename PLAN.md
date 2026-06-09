@@ -124,7 +124,8 @@ Completed:
     via `detail::count_values`, and the index stays fully usable; entries
     detached for reinsertion may be lost. Verified by allocation-failure
     injection sweeps in `tests/rtree_exception_tests.cpp` (countdown-failing
-    global `operator new` in a dedicated test binary)
+    global `operator new` in a dedicated test binary; self-skips under tools
+    like Valgrind that intercept the global allocator symbols)
   - move construction / move assignment — the root is pool-allocated (created
     lazily on first insert) so node storage is address-stable across a move;
     copying stays deleted
