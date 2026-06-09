@@ -39,6 +39,8 @@ struct DriverGeometry {
     [[nodiscard]] Box bounds() const noexcept {
         return box;
     }
+
+    bool operator==(const DriverGeometry&) const = default;
 };
 
 using Index = talus::SpatialIndex<DriverGeometry, Scalar, 9>;
@@ -478,6 +480,21 @@ void print_geometry(const DriverGeometry& geometry) {
     return line;
 }
 
+[[nodiscard]] std::size_t read_record_id() {
+    while (true) {
+        const std::string line = read_line("record id: ");
+        std::istringstream input(line);
+        std::size_t id = 0;
+        input >> id;
+        const bool parsed = !input.fail();
+        input >> std::ws;
+        if (parsed && input.eof() && id > 0) {
+            return id;
+        }
+        std::cout << "Please enter a positive integer id.\n";
+    }
+}
+
 [[nodiscard]] Box read_query_box() {
     const double min_x = read_double("min_x: ");
     const double min_y = read_double("min_y: ");
@@ -578,6 +595,33 @@ void nearest_neighbor(const Index& index) {
     }
 }
 
+void erase_record(Index& index, std::vector<DriverGeometry>& records) {
+    if (records.empty()) {
+        std::cout << "No geometries loaded.\n";
+        return;
+    }
+
+    const std::size_t id = read_record_id();
+    const auto found = std::find_if(records.begin(), records.end(), [id](const DriverGeometry& geometry) {
+        return geometry.id == id;
+    });
+
+    if (found == records.end()) {
+        std::cout << "No geometry with id " << id << ".\n";
+        return;
+    }
+
+    const DriverGeometry geometry = *found;
+    if (!index.erase(geometry)) {
+        std::cout << "Index did not contain id " << id << "; records list left unchanged.\n";
+        return;
+    }
+
+    records.erase(found);
+    std::cout << "Erased geometry:\n";
+    print_geometry(geometry);
+}
+
 void list_records(const std::vector<DriverGeometry>& records) {
     if (records.empty()) {
         std::cout << "No geometries loaded.\n";
@@ -611,8 +655,9 @@ void print_menu(const Index& index) {
         << "3. Nearest neighbor from x/lon, y/lat\n"
         << "4. Radius search from x/lon, y/lat\n"
         << "5. Import JSON file\n"
-        << "6. Clear index\n"
-        << "7. Show JSON import format\n"
+        << "6. Erase geometry by id\n"
+        << "7. Clear index\n"
+        << "8. Show JSON import format\n"
         << "0. Quit\n"
         << "Choice: ";
 }
@@ -654,10 +699,12 @@ int main(int argc, char** argv) {
                 } else if (choice == "5") {
                     import_json(index, records);
                 } else if (choice == "6") {
+                    erase_record(index, records);
+                } else if (choice == "7") {
                     index.clear();
                     records.clear();
                     std::cout << "Index cleared.\n";
-                } else if (choice == "7") {
+                } else if (choice == "8") {
                     print_import_help();
                 } else if (choice == "0" || choice == "q" || choice == "quit") {
                     break;

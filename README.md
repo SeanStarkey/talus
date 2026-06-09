@@ -258,8 +258,8 @@ ASan+UBSan suite, and runs the tests under Valgrind, on every push and pull requ
 Talus includes a small command-line driver that exercises the currently exposed
 public API. It loads seeded example geometries, can import additional JSON data,
 and lets you list records, run bounding-box searches, run radius searches, find
-the nearest geometry to a query point, clear the index, and view the supported
-import format.
+the nearest geometry to a query point, erase a geometry by id, clear the index,
+and view the supported import format.
 
 ```bash
 cmake -B build -DTALUS_BUILD_EXAMPLES=ON
