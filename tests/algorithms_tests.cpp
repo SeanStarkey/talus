@@ -1276,6 +1276,234 @@ void test_choose_leaf_uses_margin_when_area_is_degenerate() {
     TALUS_CHECK(chosen == &near_line);
 }
 
+// Recursively verifies the structural invariants STR bulk load must establish:
+// fill bounds (non-root nodes hold [min_children, max_children] entries),
+// correct parent pointers, child entry bounds that match the child's actual
+// bounds, node bounds equal to the union of entry bounds, and uniform leaf
+// depth. Returns the number of value entries in the subtree.
+template<typename Node>
+std::size_t verify_packed_subtree(
+    const Node& node,
+    bool is_root,
+    std::size_t depth,
+    std::size_t& leaf_depth) {
+    constexpr std::size_t no_depth = static_cast<std::size_t>(-1);
+
+    TALUS_CHECK(!node.empty());
+    TALUS_CHECK(node.count() <= Node::max_children);
+    if (!is_root) {
+        TALUS_CHECK(node.count() >= Node::min_children);
+    }
+
+    auto combined = node.entry_bounds_at(0);
+    for (std::size_t i = 1; i < node.count(); ++i) {
+        combined = combined.expand(node.entry_bounds_at(i));
+    }
+    TALUS_CHECK(node.bounds() == combined);
+
+    if (node.is_leaf()) {
+        if (leaf_depth == no_depth) {
+            leaf_depth = depth;
+        }
+        TALUS_CHECK(depth == leaf_depth);
+        return node.count();
+    }
+
+    std::size_t total = 0;
+    for (const auto& entry : node.children()) {
+        TALUS_CHECK(entry.child != nullptr);
+        TALUS_CHECK(entry.child->parent() == &node);
+        TALUS_CHECK(entry.bounds == entry.child->bounds());
+        total += verify_packed_subtree(*entry.child, false, depth + 1, leaf_depth);
+    }
+    return total;
+}
+
+template<typename Node>
+void verify_packed_tree(const Node& root, std::size_t expected_values) {
+    TALUS_CHECK(root.parent() == nullptr);
+    std::size_t leaf_depth = static_cast<std::size_t>(-1);
+    TALUS_CHECK(verify_packed_subtree(root, true, 0, leaf_depth) == expected_values);
+}
+
+// Test: test_bulk_load_group_sizes_borrows_for_min_fill
+// Verifies the per-level packing sizes: full groups of capacity, a final
+// remainder group, and redistribution from the preceding group when the
+// remainder alone would violate the minimum-fill invariant.
+void test_bulk_load_group_sizes_borrows_for_min_fill() {
+    using talus::detail::bulk_load_detail::group_sizes;
+
+    // Exact multiples produce uniform full groups.
+    TALUS_CHECK(group_sizes(8, 4, 2) == (std::vector<std::size_t>{4, 4}));
+
+    // A remainder already at min fill is kept as-is.
+    TALUS_CHECK(group_sizes(10, 4, 2) == (std::vector<std::size_t>{4, 4, 2}));
+
+    // A remainder of 1 borrows one entry from the previous group.
+    TALUS_CHECK(group_sizes(9, 4, 2) == (std::vector<std::size_t>{4, 3, 2}));
+
+    // A single undersized group is allowed: it becomes the root.
+    TALUS_CHECK(group_sizes(1, 4, 2) == (std::vector<std::size_t>{1}));
+}
+
+// Test: test_str_bulk_load_single_entry_builds_leaf_root
+// Verifies bulk loading one entry produces a leaf root holding exactly that
+// entry with matching bounds.
+void test_str_bulk_load_single_entry_builds_leaf_root() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node> pool;
+    std::vector<Node::value_entry_type> entries;
+    entries.emplace_back(Box{{1.0, 2.0}, {3.0, 4.0}}, 7);
+
+    Node* root = talus::detail::str_bulk_load(pool, std::move(entries));
+
+    TALUS_CHECK(root != nullptr);
+    TALUS_CHECK(root->is_leaf());
+    TALUS_CHECK(root->count() == 1);
+    TALUS_CHECK(root->value_at(0).value() == 7);
+    TALUS_CHECK(root->bounds() == (Box{{1.0, 2.0}, {3.0, 4.0}}));
+    verify_packed_tree(*root, 1);
+}
+
+// Test: test_str_bulk_load_full_leaf_stays_single_level
+// Verifies that exactly MaxChildren entries pack into one full leaf root with
+// no internal level above it.
+void test_str_bulk_load_full_leaf_stays_single_level() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node> pool;
+    std::vector<Node::value_entry_type> entries;
+    for (int i = 0; i < 4; ++i) {
+        const double x = static_cast<double>(i);
+        entries.emplace_back(Box{{x, 0.0}, {x, 0.0}}, i);
+    }
+
+    Node* root = talus::detail::str_bulk_load(pool, std::move(entries));
+
+    TALUS_CHECK(root->is_leaf());
+    TALUS_CHECK(root->count() == 4);
+    TALUS_CHECK(pool.size() == 1);
+    verify_packed_tree(*root, 4);
+}
+
+// Test: test_str_bulk_load_overflow_builds_internal_root
+// Verifies that one entry past leaf capacity forces a two-level tree whose
+// internal root references min-fill-respecting leaves.
+void test_str_bulk_load_overflow_builds_internal_root() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node> pool;
+    std::vector<Node::value_entry_type> entries;
+    for (int i = 0; i < 5; ++i) {
+        const double x = static_cast<double>(i);
+        entries.emplace_back(Box{{x, 0.0}, {x, 0.0}}, i);
+    }
+
+    Node* root = talus::detail::str_bulk_load(pool, std::move(entries));
+
+    TALUS_CHECK(root->is_internal());
+    TALUS_CHECK(root->count() == 2);
+    verify_packed_tree(*root, 5);
+    TALUS_CHECK(talus::detail::count_values(*root) == 5);
+}
+
+// Test: test_str_bulk_load_redistributes_underfull_tail_leaf
+// Verifies that a remainder smaller than min_children (9 entries with fanout 4
+// would leave a 1-entry tail leaf) is fixed by borrowing from the previous
+// group, so every non-root node satisfies the minimum-fill invariant.
+void test_str_bulk_load_redistributes_underfull_tail_leaf() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node> pool;
+    std::vector<Node::value_entry_type> entries;
+    for (int i = 0; i < 9; ++i) {
+        const double x = static_cast<double>(i);
+        entries.emplace_back(Box{{x, 0.0}, {x, 0.0}}, i);
+    }
+
+    Node* root = talus::detail::str_bulk_load(pool, std::move(entries));
+
+    verify_packed_tree(*root, 9);
+}
+
+// Test: test_str_bulk_load_handles_duplicate_positions
+// Verifies bulk loading many identical zero-area boxes still produces a valid
+// packed tree (the tie-breaking order is deterministic, so packing cannot
+// produce malformed groups).
+void test_str_bulk_load_handles_duplicate_positions() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node> pool;
+    std::vector<Node::value_entry_type> entries;
+    for (int i = 0; i < 50; ++i) {
+        entries.emplace_back(Box{{1.0, 1.0}, {1.0, 1.0}}, i);
+    }
+
+    Node* root = talus::detail::str_bulk_load(pool, std::move(entries));
+
+    verify_packed_tree(*root, 50);
+    TALUS_CHECK(root->bounds() == (Box{{1.0, 1.0}, {1.0, 1.0}}));
+}
+
+// Test: test_str_bulk_load_large_set_searchable
+// Verifies a multi-level bulk-loaded tree (grid data, several internal levels)
+// maintains all structural invariants and that detail::search finds every
+// loaded entry exactly once.
+void test_str_bulk_load_large_set_searchable() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node> pool;
+    std::vector<Node::value_entry_type> entries;
+    int id = 0;
+    for (int x = 0; x < 25; ++x) {
+        for (int y = 0; y < 20; ++y) {
+            entries.emplace_back(
+                Box{{static_cast<double>(x), static_cast<double>(y)},
+                    {static_cast<double>(x), static_cast<double>(y)}},
+                id++);
+        }
+    }
+
+    Node* root = talus::detail::str_bulk_load(pool, std::move(entries));
+
+    verify_packed_tree(*root, 500);
+
+    std::vector<int> found;
+    talus::detail::search(*root, Box{{0.0, 0.0}, {25.0, 20.0}}, [&](int value) {
+        found.push_back(value);
+    });
+    std::sort(found.begin(), found.end());
+    TALUS_CHECK(found.size() == 500);
+    for (int i = 0; i < 500; ++i) {
+        TALUS_CHECK(found[static_cast<std::size_t>(i)] == i);
+    }
+
+    // Point query for one cell returns exactly that entry.
+    std::vector<int> single;
+    talus::detail::search(*root, Box{{7.0, 3.0}, {7.0, 3.0}}, [&](int value) {
+        single.push_back(value);
+    });
+    TALUS_CHECK(single == (std::vector<int>{7 * 20 + 3}));
+}
+
+// Test: test_str_bulk_load_move_only_values
+// Verifies bulk load relocates move-only leaf values without copying.
+void test_str_bulk_load_move_only_values() {
+    using Node = talus::detail::RTreeNode<MoveOnlyValue, double, 4>;
+
+    talus::detail::PoolAllocator<Node> pool;
+    std::vector<Node::value_entry_type> entries;
+    for (int i = 0; i < 6; ++i) {
+        const double x = static_cast<double>(i);
+        entries.emplace_back(Box{{x, 0.0}, {x, 0.0}}, MoveOnlyValue{i});
+    }
+
+    Node* root = talus::detail::str_bulk_load(pool, std::move(entries));
+
+    verify_packed_tree(*root, 6);
+}
+
 } // namespace
 
 int main() {
@@ -1324,4 +1552,12 @@ int main() {
     test_nearest_neighbor_empty_root_returns_null();
     test_nearest_neighbor_leaf_uses_entry_bounds();
     test_nearest_neighbor_internal_tree_finds_best_leaf_entry();
+    test_bulk_load_group_sizes_borrows_for_min_fill();
+    test_str_bulk_load_single_entry_builds_leaf_root();
+    test_str_bulk_load_full_leaf_stays_single_level();
+    test_str_bulk_load_overflow_builds_internal_root();
+    test_str_bulk_load_redistributes_underfull_tail_leaf();
+    test_str_bulk_load_handles_duplicate_positions();
+    test_str_bulk_load_large_set_searchable();
+    test_str_bulk_load_move_only_values();
 }

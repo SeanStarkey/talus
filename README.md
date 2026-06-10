@@ -9,11 +9,11 @@ A zero-dependency, header-only C++20 spatial index library. Drop it in, include 
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 
 > **Status: early development (v0.1.0, in progress).** Working today: automatic
-> type detection, `insert`, rectangle (`within`) queries, radius searches, and
-> single nearest-neighbor queries, and deletion with `erase`, validated against
-> a brute-force oracle. Bulk loading, k-nearest queries, custom query visitors,
-> and the k-d tree are **planned, not yet implemented** — see the
-> [Roadmap](#roadmap).
+> type detection, `insert`, STR bulk loading with `bulk_load`, rectangle
+> (`within`) queries, radius searches, single nearest-neighbor queries, and
+> deletion with `erase`, validated against a brute-force oracle. k-nearest
+> queries, custom query visitors, and the k-d tree are **planned, not yet
+> implemented** — see the [Roadmap](#roadmap).
 > [PLAN.md](PLAN.md) is the source of truth for what is and isn't done.
 
 ---
@@ -67,14 +67,14 @@ int main() {
 | R*-tree | ✓ | ✓ | ✗ | ✗ |
 | k-d tree | ◐ | ✗ | ✓ | ✗ |
 | Delete / removal | ✓ | ✓ | ✗ | ✓ |
-| Bulk loading | ◐ | ✓ | ✓ | ✗ |
+| Bulk loading | ✓ | ✓ | ✓ | ✗ |
 | N-dimensional (>2D) | ◐ | ✓ | ✓ | ✓ |
 | Serialization | ◐ | ✓ | ✓ | ✓ |
 
 **Talus column: ✓ available now · ◐ planned ([Roadmap](#roadmap)).** Competitor
-columns describe their released features. Talus ships insert, range query, radius
-search, single nearest-neighbor query, and deletion today; k-nearest, custom
-query predicates, and STR bulk loading are near-term roadmap work, while
+columns describe their released features. Talus ships insert, STR bulk loading,
+range query, radius search, single nearest-neighbor query, and deletion today;
+k-nearest and custom query predicates are near-term roadmap work, while
 N-dimensional support and serialization are longer-range (post-1.0) items.
 *RTree.h* is the widely-vendored single-header R-tree (Guttman-style, e.g.
 `nushoin/RTree`): a plain R-tree with a callback-based rectangle search, removal,
@@ -160,6 +160,11 @@ talus::SpatialIndex<T, Scalar = double, MaxChildren = 9>
 void insert(const T& value);   // requires copy-constructible T
 void insert(T&& value);
 
+// Bulk loading (STR packing) — requires an empty index; call clear() first
+// to replace existing contents
+template<std::ranges::input_range R> void bulk_load(R&& values);  // copies
+void bulk_load(std::vector<T>&& values);  // moves; supports move-only T
+
 // State
 std::size_t size() const noexcept;
 bool        empty() const noexcept;
@@ -179,11 +184,19 @@ std::vector<T> radius_search(Point<Scalar> query, Scalar radius) const;
 std::optional<T> nearest_neighbor(Point<Scalar> query) const;
 ```
 
-`insert`, `erase`, `search`, `within`, `radius_search`, and `nearest_neighbor`
-validate geometry at the boundary and throw `talus::invalid_geometry` (a
-`std::invalid_argument`) when a coordinate is NaN or infinite, a radius is
-negative, or a box has `min > max`. A rejected `insert` leaves the index
-unchanged, and a rejected `erase` leaves the index unchanged.
+`insert`, `bulk_load`, `erase`, `search`, `within`, `radius_search`, and
+`nearest_neighbor` validate geometry at the boundary and throw
+`talus::invalid_geometry` (a `std::invalid_argument`) when a coordinate is NaN
+or infinite, a radius is negative, or a box has `min > max`. A rejected
+`insert` leaves the index unchanged, and a rejected `erase` leaves the index
+unchanged.
+
+`bulk_load` builds the tree bottom-up with the Sort-Tile-Recursive (STR)
+algorithm — much faster than inserting values one at a time, and it produces a
+better-packed tree. It requires an empty index and throws `std::logic_error`
+otherwise. Every value's bounds are validated before the tree is touched, so an
+`invalid_geometry` throw leaves the index unchanged; if building the tree
+itself fails, the index is reset to a valid empty state.
 
 `erase` removes one stored value equal to the argument. Bounds are extracted from
 the argument first, so deletion requires both matching bounds and value equality.
@@ -198,9 +211,6 @@ pattern.)
 ### Planned (not yet implemented)
 
 ```cpp
-// Bulk insertion via STR bulk load
-template<std::ranges::input_range R> void insert(R&& range);
-
 // k-nearest queries
 std::vector<T> nearest(Point<Scalar> query, std::size_t k) const;
 
@@ -283,7 +293,7 @@ To run it with the sample JSON import file:
 - [ ] k-nearest queries
 - [ ] Custom query predicates / visitor
 - [x] Delete and reinsertion
-- [ ] STR bulk loading
+- [x] STR bulk loading
 - [ ] k-d tree
 - [ ] Benchmarks vs Boost.Geometry and nanoflann
 

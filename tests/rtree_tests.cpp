@@ -709,6 +709,206 @@ void test_spatial_index_handles_large_boxed_values() {
     }
 }
 
+// Test: test_spatial_index_bulk_load_matches_brute_force
+// Verifies STR bulk load of random points produces an index whose rectangular
+// search, radius search, and nearest neighbor results all match the
+// brute-force oracle, and whose size/empty reporting reflects the load.
+void test_spatial_index_bulk_load_matches_brute_force() {
+    std::mt19937 rng(2026);
+    std::uniform_real_distribution<double> coord(-500.0, 500.0);
+
+    std::vector<PointRecord> points;
+    points.reserve(700);
+    for (int id = 0; id < 700; ++id) {
+        points.push_back(PointRecord{coord(rng), coord(rng), id});
+    }
+
+    talus::SpatialIndex<PointRecord, double, 4> index;  // small fanout => deep tree
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    index.bulk_load(points);
+    for (const PointRecord& point : points) {
+        oracle.insert(point);
+    }
+
+    TALUS_CHECK(index.size() == 700);
+    TALUS_CHECK(!index.empty());
+
+    for (int i = 0; i < 60; ++i) {
+        const double x = coord(rng);
+        const double y = coord(rng);
+        const double width = std::abs(coord(rng)) / 4.0;
+        const double height = std::abs(coord(rng)) / 4.0;
+        const Box query{{x, y}, {x + width, y + height}};
+        assert_same_ids(index.search(query), oracle.search(query));
+
+        const talus::Point<double> center{coord(rng), coord(rng)};
+        assert_same_ids(index.radius_search(center, 75.0), oracle.radius_search(center, 75.0));
+        assert_same_optional_id(index.nearest_neighbor(center), oracle.nearest_neighbor(center));
+    }
+}
+
+// Test: test_spatial_index_bulk_load_bounded_geometry_matches_brute_force
+// Verifies bulk load works for `.bounds()` geometries (extended boxes, not
+// points) and search results match the brute-force oracle.
+void test_spatial_index_bulk_load_bounded_geometry_matches_brute_force() {
+    std::mt19937 rng(7);
+    std::uniform_real_distribution<double> coord(-100.0, 100.0);
+    std::uniform_real_distribution<double> extent(0.0, 10.0);
+
+    std::vector<BoundedRecord> records;
+    for (int id = 0; id < 250; ++id) {
+        const double x = coord(rng);
+        const double y = coord(rng);
+        records.push_back(BoundedRecord{id, Box{{x, y}, {x + extent(rng), y + extent(rng)}}});
+    }
+
+    talus::SpatialIndex<BoundedRecord, double, 4> index;
+    talus::test::BruteForceIndex<BoundedRecord, double> oracle;
+    index.bulk_load(records);
+    for (const BoundedRecord& record : records) {
+        oracle.insert(record);
+    }
+
+    for (int i = 0; i < 40; ++i) {
+        const double x = coord(rng);
+        const double y = coord(rng);
+        const Box query{{x, y}, {x + 30.0, y + 30.0}};
+        assert_same_ids(index.search(query), oracle.search(query));
+    }
+}
+
+// Test: test_spatial_index_bulk_load_empty_range_is_noop
+// Verifies bulk loading an empty range leaves the index empty and usable.
+void test_spatial_index_bulk_load_empty_range_is_noop() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    index.bulk_load(std::vector<PointRecord>{});
+
+    TALUS_CHECK(index.empty());
+    TALUS_CHECK(index.size() == 0);
+
+    index.insert(PointRecord{1.0, 1.0, 1});
+    TALUS_CHECK(index.size() == 1);
+}
+
+// Test: test_spatial_index_bulk_load_requires_empty_index
+// Verifies bulk loading a non-empty index throws std::logic_error and leaves
+// the existing contents untouched.
+void test_spatial_index_bulk_load_requires_empty_index() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    index.insert(PointRecord{1.0, 1.0, 1});
+
+    bool threw = false;
+    try {
+        index.bulk_load(std::vector<PointRecord>{{2.0, 2.0, 2}});
+    } catch (const std::logic_error&) {
+        threw = true;
+    }
+
+    TALUS_CHECK(threw);
+    TALUS_CHECK(index.size() == 1);
+    assert_same_ids(index.search(Box{{0.0, 0.0}, {3.0, 3.0}}),
+        std::vector<PointRecord>{{1.0, 1.0, 1}});
+
+    // After an explicit clear the same load succeeds.
+    index.clear();
+    index.bulk_load(std::vector<PointRecord>{{2.0, 2.0, 2}});
+    TALUS_CHECK(index.size() == 1);
+    assert_same_ids(index.search(Box{{0.0, 0.0}, {3.0, 3.0}}),
+        std::vector<PointRecord>{{2.0, 2.0, 2}});
+}
+
+// Test: test_spatial_index_bulk_load_throws_on_invalid_geometry
+// Verifies a NaN coordinate anywhere in the input rejects the whole load with
+// invalid_geometry before any value is stored, leaving the index empty and
+// fully usable afterwards.
+void test_spatial_index_bulk_load_throws_on_invalid_geometry() {
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    std::vector<PointRecord> points{
+        {1.0, 1.0, 1},
+        {nan, 2.0, 2},
+        {3.0, 3.0, 3},
+    };
+
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    bool threw = false;
+    try {
+        index.bulk_load(points);
+    } catch (const talus::invalid_geometry&) {
+        threw = true;
+    }
+
+    TALUS_CHECK(threw);
+    TALUS_CHECK(index.empty());
+
+    index.insert(PointRecord{5.0, 5.0, 9});
+    TALUS_CHECK(index.size() == 1);
+}
+
+// Test: test_spatial_index_bulk_load_moves_vector_values
+// Verifies the rvalue-vector overload move-constructs stored values (payloads
+// arrive intact) instead of requiring copies from the caller's container.
+void test_spatial_index_bulk_load_moves_vector_values() {
+    std::vector<NamedPoint> points{
+        {1.0, 1.0, "alpha"},
+        {2.0, 2.0, "beta"},
+        {3.0, 3.0, "gamma"},
+        {4.0, 4.0, "delta"},
+        {5.0, 5.0, "epsilon"},
+    };
+
+    talus::SpatialIndex<NamedPoint, double, 4> index;
+    index.bulk_load(std::move(points));
+
+    TALUS_CHECK(index.size() == 5);
+    const auto matches = index.search(Box{{2.0, 2.0}, {4.0, 4.0}});
+    std::vector<std::string> names;
+    for (const NamedPoint& point : matches) {
+        names.push_back(point.name);
+    }
+    std::sort(names.begin(), names.end());
+    TALUS_CHECK(names == (std::vector<std::string>{"beta", "delta", "gamma"}));
+}
+
+// Test: test_spatial_index_bulk_load_then_mutate_matches_brute_force
+// Verifies a bulk-loaded tree composes with later incremental mutation:
+// inserts and erases after the load keep matching the brute-force oracle, so
+// the packed structure upholds every invariant the dynamic algorithms rely on.
+void test_spatial_index_bulk_load_then_mutate_matches_brute_force() {
+    std::mt19937 rng(31);
+    std::uniform_real_distribution<double> coord(-50.0, 50.0);
+
+    std::vector<PointRecord> points;
+    for (int id = 0; id < 200; ++id) {
+        points.push_back(PointRecord{coord(rng), coord(rng), id});
+    }
+
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    index.bulk_load(points);
+    for (const PointRecord& point : points) {
+        oracle.insert(point);
+    }
+
+    // Erase a deterministic-but-scattered third of the loaded values, then
+    // insert fresh ones.
+    for (std::size_t i = 0; i < points.size(); i += 3) {
+        TALUS_CHECK(index.erase(points[i]) == oracle.erase(points[i]));
+    }
+    for (int id = 200; id < 260; ++id) {
+        const PointRecord point{coord(rng), coord(rng), id};
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    TALUS_CHECK(index.size() == oracle.size());
+    for (int i = 0; i < 30; ++i) {
+        const double x = coord(rng);
+        const double y = coord(rng);
+        const Box query{{x, y}, {x + 20.0, y + 20.0}};
+        assert_same_ids(index.search(query), oracle.search(query));
+    }
+}
+
 } // namespace
 
 int main() {
@@ -731,5 +931,12 @@ int main() {
     test_spatial_index_is_movable();
     test_spatial_index_throws_on_invalid_geometry();
     test_spatial_index_handles_large_boxed_values();
+    test_spatial_index_bulk_load_matches_brute_force();
+    test_spatial_index_bulk_load_bounded_geometry_matches_brute_force();
+    test_spatial_index_bulk_load_empty_range_is_noop();
+    test_spatial_index_bulk_load_requires_empty_index();
+    test_spatial_index_bulk_load_throws_on_invalid_geometry();
+    test_spatial_index_bulk_load_moves_vector_values();
+    test_spatial_index_bulk_load_then_mutate_matches_brute_force();
     return 0;
 }

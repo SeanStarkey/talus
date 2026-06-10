@@ -21,8 +21,8 @@ to operate on in-source builds.
 The R-tree implementation has storage primitives, the first algorithm slice, and
 the minimal public wrapper. Node layout, overlap-aware ChooseLeaf, non-splitting
 Insert, the low-level SplitNode primitive, AdjustTree split propagation, Search,
-NearestNeighbor, RadiusSearch, Delete, and public `SpatialIndex`
-insert/search/nearest-neighbor/radius-search/erase are in place. ChooseSubtree and the
+NearestNeighbor, RadiusSearch, Delete, STR bulk load, and public `SpatialIndex`
+insert/search/nearest-neighbor/radius-search/erase/bulk-load are in place. ChooseSubtree and the
 split-index selection use a margin (half-perimeter) tie-breaker so point and
 axis-aligned data — where bounding boxes have zero area — are still ranked
 spatially instead of collapsing to the entry-count fallback.
@@ -152,7 +152,21 @@ After Insert, Search, NearestNeighbor, and RadiusSearch are solid, add to `algor
 
 1. Completed: Radius search
 2. Completed: Delete
-3. STR bulk load
+3. Completed: STR bulk load — `detail::str_bulk_load` packs leaf entries with
+   Sort-Tile-Recursive tiling (x-center sort, vertical slices, y-center sort
+   per slice) and builds upper levels the same way until a single root remains.
+   All needed nodes are pool-reserved up front. A final-group min-fill
+   redistribution keeps every non-root node at or above `min_children`, so the
+   packed tree upholds the invariants the dynamic insert/erase algorithms rely
+   on. Exposed publicly as `SpatialIndex::bulk_load` (a range overload that
+   copies, plus a `std::vector<T>&&` overload that moves and supports move-only
+   values). The public method requires an empty index (`std::logic_error`
+   otherwise), validates every extracted bounds before touching the tree
+   (`invalid_geometry` leaves the index unchanged), and resets to a valid empty
+   state if the build itself fails. Covered by detail-level structural
+   invariant tests (uniform leaf depth, fill bounds, parent links, bounds
+   unions) and public brute-force-oracle tests, including post-load
+   insert/erase interoperation.
 4. k-nearest (k>1) queries
 5. Custom query predicates / visitor traversal
 
@@ -214,7 +228,7 @@ comparison. They are intentionally deferred past the v0.1.x line.
 
 ## Next Concrete Task
 
-Continue with the remaining R*-tree algorithms after public delete is stable.
-Next, implement STR bulk load in `include/talus/detail/algorithms.hpp`, expose
-the matching public wrapper method, and compare results against the brute-force
-oracle.
+Continue with the remaining R*-tree algorithms now that STR bulk load is in.
+Next, implement k-nearest (k>1) queries in
+`include/talus/detail/algorithms.hpp`, expose the matching public wrapper
+method, and compare results against the brute-force oracle.

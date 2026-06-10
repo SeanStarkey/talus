@@ -10,6 +10,7 @@
 #include <concepts>
 #include <cmath>
 #include <optional>
+#include <ranges>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -110,6 +111,67 @@ public:
     void insert(T&& value) {
         const bounds_type bounds = bounding_box_of<Scalar>(value);
         insert_with_bounds(bounds, std::move(value));
+    }
+
+    /// @brief Bulk-loads copies of `values` into an empty index using STR packing.
+    ///
+    /// Builds the tree bottom-up with the Sort-Tile-Recursive algorithm, which
+    /// is much faster than repeated insertion for large datasets and produces a
+    /// well-packed tree. The index must be empty; callers replacing existing
+    /// contents should call `clear()` first. Loading an empty range is a no-op.
+    ///
+    /// Every value's extracted bounds are validated before the tree is touched,
+    /// so an `invalid_geometry` throw leaves the index unchanged. If building
+    /// the tree itself fails (allocation failure, or a throwing copy/move of
+    /// `T`), the index is reset to a valid empty state before the exception
+    /// propagates.
+    ///
+    /// @throws std::logic_error if the index is not empty.
+    /// @throws invalid_geometry if any value's extracted bounds are invalid
+    /// (a NaN/infinite coordinate, or min > max).
+    template<std::ranges::input_range Range>
+        requires std::constructible_from<T, std::ranges::range_reference_t<Range>>
+    void bulk_load(Range&& values) {
+        if (!empty()) {
+            throw std::logic_error("talus: bulk_load requires an empty index");
+        }
+
+        std::vector<typename node_type::value_entry_type> entries;
+        if constexpr (std::ranges::sized_range<Range>) {
+            entries.reserve(std::ranges::size(values));
+        }
+        for (auto&& value : values) {
+            const bounds_type bounds = bounding_box_of<Scalar>(value);
+            if (!bounds.is_valid()) {
+                throw invalid_geometry{};
+            }
+            entries.emplace_back(bounds, std::forward<decltype(value)>(value));
+        }
+
+        build_from_entries(std::move(entries));
+    }
+
+    /// @brief Bulk-loads by moving values out of `values` using STR packing.
+    ///
+    /// Same contract as the range overload, but stored values are
+    /// move-constructed from the vector's elements, so move-only types are
+    /// supported.
+    void bulk_load(std::vector<T>&& values) {
+        if (!empty()) {
+            throw std::logic_error("talus: bulk_load requires an empty index");
+        }
+
+        std::vector<typename node_type::value_entry_type> entries;
+        entries.reserve(values.size());
+        for (T& value : values) {
+            const bounds_type bounds = bounding_box_of<Scalar>(value);
+            if (!bounds.is_valid()) {
+                throw invalid_geometry{};
+            }
+            entries.emplace_back(bounds, std::move(value));
+        }
+
+        build_from_entries(std::move(entries));
     }
 
     /// @brief Returns the number of stored values.
@@ -254,6 +316,29 @@ public:
 private:
     using node_type = detail::RTreeNode<T, Scalar, MaxChildren>;
     using pool_type = detail::PoolAllocator<node_type>;
+
+    /// Hands validated leaf entries to the STR builder. The caller has already
+    /// verified the index is empty, so on failure resetting back to the empty
+    /// state (releasing any partially built nodes) preserves what the caller saw.
+    void build_from_entries(std::vector<typename node_type::value_entry_type> entries) {
+        if (entries.empty()) {
+            return;
+        }
+
+        const std::size_t count = entries.size();
+        pool_.reset();   // drop any stale empty root left behind by erase
+        root_ = nullptr;
+
+        try {
+            root_ = detail::str_bulk_load(pool_, std::move(entries));
+            size_ = count;
+        } catch (...) {
+            pool_.reset();
+            root_ = nullptr;
+            size_ = 0;
+            throw;
+        }
+    }
 
     template<typename U>
     void insert_impl(const T& bounds_source, U&& value) {

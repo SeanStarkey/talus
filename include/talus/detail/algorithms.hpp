@@ -9,8 +9,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <limits>
+#include <numeric>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -1033,6 +1035,191 @@ template<typename T, typename Scalar, std::size_t MaxChildren>
     nearest_detail::NearestState<T, Scalar, MaxChildren> best;
     nearest_detail::nearest_impl(root, query, best);
     return best.value;
+}
+
+namespace bulk_load_detail {
+
+/// @brief Returns `value / divisor` rounded up.
+[[nodiscard]] constexpr std::size_t ceil_div(std::size_t value, std::size_t divisor) noexcept {
+    return value / divisor + (value % divisor == 0 ? 0 : 1);
+}
+
+/// @brief Sorts an index segment by entry-bounds center along one axis.
+///
+/// Ties fall back to the other axis's center, then to the index itself, so the
+/// resulting order is deterministic even for duplicate geometry.
+template<typename Scalar, typename BoundsAt>
+void sort_segment_by_center(
+    std::vector<std::size_t>& order,
+    std::size_t first,
+    std::size_t count,
+    BoundsAt& bounds_at,
+    bool by_x) {
+    const auto begin = order.begin() + static_cast<std::ptrdiff_t>(first);
+    std::sort(begin, begin + static_cast<std::ptrdiff_t>(count),
+        [&](std::size_t lhs, std::size_t rhs) {
+            const Point<Scalar> left = bounds_at(lhs).center();
+            const Point<Scalar> right = bounds_at(rhs).center();
+            const Scalar left_primary = by_x ? left.x : left.y;
+            const Scalar right_primary = by_x ? right.x : right.y;
+            if (left_primary != right_primary) {
+                return left_primary < right_primary;
+            }
+
+            const Scalar left_secondary = by_x ? left.y : left.x;
+            const Scalar right_secondary = by_x ? right.y : right.x;
+            if (left_secondary != right_secondary) {
+                return left_secondary < right_secondary;
+            }
+
+            return lhs < rhs;
+        });
+}
+
+/// @brief Produces the STR packing order for one tree level.
+///
+/// Sorts all entries by x-center, partitions them into `ceil(sqrt(group_count))`
+/// vertical slices of `slice_count * capacity` entries, and sorts each slice by
+/// y-center. Consecutive runs of `capacity` indices in the returned order form
+/// one node's entries.
+template<typename Scalar, typename BoundsAt>
+[[nodiscard]] std::vector<std::size_t> tile_order(
+    std::size_t count,
+    BoundsAt&& bounds_at,
+    std::size_t capacity) {
+    TALUS_ASSERT(count > 0);
+    TALUS_ASSERT(capacity > 0);
+
+    std::vector<std::size_t> order(count);
+    std::iota(order.begin(), order.end(), std::size_t{0});
+    sort_segment_by_center<Scalar>(order, 0, count, bounds_at, true);
+
+    const std::size_t group_count = ceil_div(count, capacity);
+    std::size_t slice_count =
+        static_cast<std::size_t>(std::sqrt(static_cast<double>(group_count)));
+    while (slice_count * slice_count < group_count) {
+        ++slice_count;
+    }
+
+    const std::size_t slice_size = slice_count * capacity;
+    for (std::size_t first = 0; first < count; first += slice_size) {
+        sort_segment_by_center<Scalar>(
+            order, first, std::min(slice_size, count - first), bounds_at, false);
+    }
+
+    return order;
+}
+
+/// @brief Returns per-node entry counts for packing one tree level.
+///
+/// Every group takes `capacity` entries except possibly the last. When the
+/// final remainder would leave a node below `min_fill` (and the level has more
+/// than one node), the deficit is borrowed from the preceding group so every
+/// non-root node satisfies the minimum-fill invariant. `capacity >= 2 *
+/// min_fill` guarantees the donor group stays at or above `min_fill`.
+[[nodiscard]] inline std::vector<std::size_t> group_sizes(
+    std::size_t count,
+    std::size_t capacity,
+    std::size_t min_fill) {
+    TALUS_ASSERT(count > 0);
+    TALUS_ASSERT(capacity >= 2 * min_fill);
+
+    std::vector<std::size_t> sizes(count / capacity, capacity);
+    const std::size_t remainder = count % capacity;
+    if (remainder > 0) {
+        sizes.push_back(remainder);
+    }
+
+    if (sizes.size() > 1 && sizes.back() < min_fill) {
+        const std::size_t deficit = min_fill - sizes.back();
+        sizes[sizes.size() - 2] -= deficit;
+        sizes.back() += deficit;
+    }
+
+    return sizes;
+}
+
+} // namespace bulk_load_detail
+
+/// @brief Builds a packed R-tree from leaf entries with Sort-Tile-Recursive loading.
+///
+/// Packs the entries into leaves slice-by-slice (sorted by x-center, then
+/// y-center within each vertical slice), then repeats the same tiling over each
+/// finished level's node bounds until a single root remains. Every non-root
+/// node holds between `min_children` and `MaxChildren` entries and all leaves
+/// sit at the same depth. Returns the new root, whose parent pointer is null.
+///
+/// All required nodes are reserved in `pool` up front, so for entries with
+/// nothrow-move values the build itself cannot fail once reservation succeeds.
+/// If an exception does escape (reservation failure, or a throwing value
+/// move), already-built nodes are left allocated in `pool`; callers owning the
+/// pool should reset it.
+template<typename T, typename Scalar, std::size_t MaxChildren, std::size_t BlockSize>
+[[nodiscard]] RTreeNode<T, Scalar, MaxChildren>* str_bulk_load(
+    PoolAllocator<RTreeNode<T, Scalar, MaxChildren>, BlockSize>& pool,
+    std::vector<typename RTreeNode<T, Scalar, MaxChildren>::value_entry_type> entries) {
+    using node_type = RTreeNode<T, Scalar, MaxChildren>;
+
+    static_assert(node_type::can_relocate_value_entries,
+        "str_bulk_load requires move-constructible value entries");
+    TALUS_ASSERT(!entries.empty());
+
+    // Reserve every node the build will create so the packing loops below
+    // cannot run out of pool capacity partway through.
+    std::size_t total_nodes = 0;
+    for (std::size_t level_count = entries.size();;) {
+        level_count = bulk_load_detail::ceil_div(level_count, MaxChildren);
+        total_nodes += level_count;
+        if (level_count == 1) {
+            break;
+        }
+    }
+    pool.reserve(pool.size() + total_nodes);
+
+    const auto leaf_order = bulk_load_detail::tile_order<Scalar>(
+        entries.size(),
+        [&](std::size_t i) { return entries[i].bounds; },
+        MaxChildren);
+    const auto leaf_sizes = bulk_load_detail::group_sizes(
+        entries.size(), MaxChildren, node_type::min_children);
+
+    std::vector<node_type*> level;
+    level.reserve(leaf_sizes.size());
+    std::size_t cursor = 0;
+    for (const std::size_t size : leaf_sizes) {
+        node_type* leaf = pool.create(true);
+        for (std::size_t i = 0; i < size; ++i) {
+            leaf->append_value_entry(std::move(entries[leaf_order[cursor + i]]));
+        }
+        level.push_back(leaf);
+        cursor += size;
+    }
+
+    while (level.size() > 1) {
+        const auto order = bulk_load_detail::tile_order<Scalar>(
+            level.size(),
+            [&](std::size_t i) { return level[i]->bounds(); },
+            MaxChildren);
+        const auto sizes = bulk_load_detail::group_sizes(
+            level.size(), MaxChildren, node_type::min_children);
+
+        std::vector<node_type*> parents;
+        parents.reserve(sizes.size());
+        cursor = 0;
+        for (const std::size_t size : sizes) {
+            node_type* parent = pool.create(false);
+            for (std::size_t i = 0; i < size; ++i) {
+                node_type* child = level[order[cursor + i]];
+                parent->append_child(child->bounds(), child);
+            }
+            parents.push_back(parent);
+            cursor += size;
+        }
+        level = std::move(parents);
+    }
+
+    TALUS_ASSERT(level.front()->parent() == nullptr);
+    return level.front();
 }
 
 } // namespace talus::detail
