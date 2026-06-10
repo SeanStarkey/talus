@@ -260,10 +260,42 @@ public:
         return matches;
     }
 
+    /// @brief Visits each value whose bounds intersect `query_bounds`.
+    ///
+    /// The visitor is invoked with `const T&` for every match in unspecified
+    /// order, without copying values — so it works with move-only `T` and lets
+    /// callers filter on custom predicates or aggregate matches in place. A
+    /// visitor returning void is invoked for every match; a visitor returning
+    /// a type convertible to `bool` stops the traversal early by returning
+    /// false. Returns the number of values visited, including the one that
+    /// requested an early stop.
+    ///
+    /// Boundary-touching boxes are included, matching `BoundingBox::intersects`.
+    ///
+    /// @throws invalid_geometry if `query_bounds` is invalid (a NaN/infinite
+    /// coordinate, or min > max).
+    template<QueryVisitor<T> Visitor>
+    std::size_t search(bounds_type query_bounds, Visitor&& visitor) const {
+        if (!query_bounds.is_valid()) {
+            throw invalid_geometry{};
+        }
+
+        if (root_ == nullptr) {
+            return 0;
+        }
+        return detail::search(*root_, query_bounds, visitor);
+    }
+
     /// @brief Alias for rectangular search, matching the documented query name.
     [[nodiscard]] std::vector<T> within(bounds_type query_bounds) const
         requires std::copy_constructible<T> {
         return search(query_bounds);
+    }
+
+    /// @brief Alias for visitor-based rectangular search.
+    template<QueryVisitor<T> Visitor>
+    std::size_t within(bounds_type query_bounds, Visitor&& visitor) const {
+        return search(query_bounds, std::forward<Visitor>(visitor));
     }
 
     /// @brief Returns copies of all values whose bounds are within `radius` of `query`.
@@ -288,6 +320,29 @@ public:
             });
         }
         return matches;
+    }
+
+    /// @brief Visits each value whose bounds are within `radius` of `query`.
+    ///
+    /// Same matching rules as the vector-returning overload, with the visitor
+    /// semantics of the rectangular visitor `search`: matches are visited in
+    /// unspecified order without copying, a bool-returning visitor stops the
+    /// traversal by returning false, and the returned count includes every
+    /// visited value.
+    ///
+    /// @throws invalid_geometry if the query coordinates or radius are NaN or
+    /// infinite, or if `radius` is negative.
+    template<QueryVisitor<T> Visitor>
+    std::size_t radius_search(Point<Scalar> query, Scalar radius, Visitor&& visitor) const {
+        if (!std::isfinite(query.x) || !std::isfinite(query.y)
+            || !std::isfinite(radius) || radius < Scalar{0}) {
+            throw invalid_geometry{};
+        }
+
+        if (root_ == nullptr) {
+            return 0;
+        }
+        return detail::radius_search(*root_, query, radius, visitor);
     }
 
     /// @brief Returns the value whose bounds are nearest to `query`, if any.

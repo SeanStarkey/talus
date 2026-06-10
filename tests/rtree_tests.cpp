@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <random>
 #include <stdexcept>
@@ -780,6 +781,27 @@ void test_spatial_index_throws_on_invalid_geometry() {
     }
     TALUS_CHECK(threw);
 
+    // Visitor overloads validate before traversing: the visitor never runs.
+    std::size_t visitor_calls = 0;
+    threw = false;
+    try {
+        (void)index.search(Box{{5.0, 5.0}, {0.0, 0.0}},
+            [&](const PointRecord&) { ++visitor_calls; });
+    } catch (const talus::invalid_geometry&) {
+        threw = true;
+    }
+    TALUS_CHECK(threw);
+
+    threw = false;
+    try {
+        (void)index.radius_search(talus::Point<double>{0.0, nan}, 1.0,
+            [&](const PointRecord&) { ++visitor_calls; });
+    } catch (const talus::invalid_geometry&) {
+        threw = true;
+    }
+    TALUS_CHECK(threw);
+    TALUS_CHECK(visitor_calls == 0);
+
     // Invalid erased value.
     threw = false;
     try {
@@ -1033,6 +1055,192 @@ void test_spatial_index_bulk_load_then_mutate_matches_brute_force() {
     }
 }
 
+// Test: test_spatial_index_visitor_search_matches_vector_search
+// Verifies the visitor overload of `search` visits exactly the values the
+// vector-returning overload collects (randomized against the brute-force
+// oracle) and returns the number of visited matches.
+void test_spatial_index_visitor_search_matches_vector_search() {
+    std::mt19937 rng(97);
+    std::uniform_real_distribution<double> coord(-100.0, 100.0);
+
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    for (int id = 0; id < 300; ++id) {
+        const PointRecord point{coord(rng), coord(rng), id};
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    for (int i = 0; i < 40; ++i) {
+        const double x = coord(rng);
+        const double y = coord(rng);
+        const Box query{{x, y}, {x + 25.0, y + 25.0}};
+
+        std::vector<PointRecord> visited;
+        const std::size_t count = index.search(query, [&](const PointRecord& value) {
+            visited.push_back(value);
+        });
+
+        TALUS_CHECK(count == visited.size());
+        assert_same_ids(visited, oracle.search(query));
+    }
+}
+
+// Test: test_spatial_index_visitor_search_supports_predicates
+// Verifies a visitor can apply a custom predicate during traversal (keep only
+// even ids) and that the kept values equal the post-filtered oracle results,
+// while the returned count still reflects every geometric match visited.
+void test_spatial_index_visitor_search_supports_predicates() {
+    std::mt19937 rng(101);
+    std::uniform_real_distribution<double> coord(-50.0, 50.0);
+
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    for (int id = 0; id < 200; ++id) {
+        const PointRecord point{coord(rng), coord(rng), id};
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    const Box query{{-25.0, -25.0}, {25.0, 25.0}};
+
+    std::vector<PointRecord> filtered;
+    const std::size_t count = index.search(query, [&](const PointRecord& value) {
+        if (value.id % 2 == 0) {
+            filtered.push_back(value);
+        }
+    });
+
+    std::vector<PointRecord> expected;
+    for (const PointRecord& value : oracle.search(query)) {
+        if (value.id % 2 == 0) {
+            expected.push_back(value);
+        }
+    }
+
+    TALUS_CHECK(count == oracle.search(query).size());
+    assert_same_ids(filtered, expected);
+}
+
+// Test: test_spatial_index_visitor_search_stops_early
+// Verifies a bool-returning visitor halts the traversal when it returns false:
+// no further values are visited, the stopping value is included in the count,
+// and a visitor that always returns true visits every match.
+void test_spatial_index_visitor_search_stops_early() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    for (int id = 0; id < 100; ++id) {
+        index.insert(PointRecord{static_cast<double>(id), static_cast<double>(id), id});
+    }
+
+    const Box everything{{-1.0, -1.0}, {101.0, 101.0}};
+
+    std::size_t visited = 0;
+    const std::size_t count = index.search(everything, [&](const PointRecord&) {
+        ++visited;
+        return visited < 3;  // stop after the third visit
+    });
+
+    TALUS_CHECK(visited == 3);
+    TALUS_CHECK(count == 3);
+
+    std::size_t all = 0;
+    const std::size_t full_count = index.search(everything, [&](const PointRecord&) {
+        ++all;
+        return true;
+    });
+
+    TALUS_CHECK(all == 100);
+    TALUS_CHECK(full_count == 100);
+}
+
+// Test: test_spatial_index_visitor_radius_search_matches_vector
+// Verifies the visitor overload of `radius_search` visits exactly the values
+// the vector-returning overload collects (randomized against the brute-force
+// oracle), and that a bool-returning visitor can stop the traversal early.
+void test_spatial_index_visitor_radius_search_matches_vector() {
+    std::mt19937 rng(103);
+    std::uniform_real_distribution<double> coord(-100.0, 100.0);
+    std::uniform_real_distribution<double> radius_dist(0.0, 60.0);
+
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    for (int id = 0; id < 300; ++id) {
+        const PointRecord point{coord(rng), coord(rng), id};
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    for (int i = 0; i < 40; ++i) {
+        const talus::Point<double> query{coord(rng), coord(rng)};
+        const double radius = radius_dist(rng);
+
+        std::vector<PointRecord> visited;
+        const std::size_t count = index.radius_search(query, radius,
+            [&](const PointRecord& value) {
+                visited.push_back(value);
+            });
+
+        TALUS_CHECK(count == visited.size());
+        assert_same_ids(visited, oracle.radius_search(query, radius));
+    }
+
+    // Early stop: visiting everything within a huge radius, halt immediately.
+    std::size_t stopped_visits = 0;
+    const std::size_t stopped_count = index.radius_search(
+        talus::Point<double>{0.0, 0.0}, 1000.0, [&](const PointRecord&) {
+            ++stopped_visits;
+            return false;
+        });
+    TALUS_CHECK(stopped_visits == 1);
+    TALUS_CHECK(stopped_count == 1);
+}
+
+// Test: test_spatial_index_visitor_search_supports_move_only_values
+// Verifies visitor queries work for move-only value types, which the
+// vector-returning overloads cannot serve because they require copyable T.
+// Also exercises the visitor `within` alias on an empty region.
+void test_spatial_index_visitor_search_supports_move_only_values() {
+    struct MoveOnlyRecord {
+        double x = 0.0;
+        double y = 0.0;
+        std::unique_ptr<int> payload;
+    };
+
+    talus::SpatialIndex<MoveOnlyRecord, double, 4> index;
+    for (int id = 0; id < 20; ++id) {
+        index.insert(MoveOnlyRecord{
+            static_cast<double>(id), static_cast<double>(id),
+            std::make_unique<int>(id)});
+    }
+
+    int payload_sum = 0;
+    const std::size_t count = index.search(Box{{0.0, 0.0}, {4.0, 4.0}},
+        [&](const MoveOnlyRecord& record) {
+            payload_sum += *record.payload;
+        });
+
+    TALUS_CHECK(count == 5);
+    TALUS_CHECK(payload_sum == 0 + 1 + 2 + 3 + 4);
+
+    const std::size_t none = index.within(Box{{50.0, 50.0}, {60.0, 60.0}},
+        [](const MoveOnlyRecord&) {});
+    TALUS_CHECK(none == 0);
+}
+
+// Test: test_spatial_index_visitor_queries_on_empty_index
+// Verifies visitor search and radius search on an empty index visit nothing
+// and return zero, without touching a (nonexistent) root.
+void test_spatial_index_visitor_queries_on_empty_index() {
+    const talus::SpatialIndex<PointRecord, double, 4> index;
+
+    std::size_t visits = 0;
+    TALUS_CHECK(index.search(Box{{0.0, 0.0}, {10.0, 10.0}},
+        [&](const PointRecord&) { ++visits; }) == 0);
+    TALUS_CHECK(index.radius_search(talus::Point<double>{0.0, 0.0}, 5.0,
+        [&](const PointRecord&) { ++visits; }) == 0);
+    TALUS_CHECK(visits == 0);
+}
+
 } // namespace
 
 int main() {
@@ -1064,5 +1272,11 @@ int main() {
     test_spatial_index_bulk_load_throws_on_invalid_geometry();
     test_spatial_index_bulk_load_moves_vector_values();
     test_spatial_index_bulk_load_then_mutate_matches_brute_force();
+    test_spatial_index_visitor_search_matches_vector_search();
+    test_spatial_index_visitor_search_supports_predicates();
+    test_spatial_index_visitor_search_stops_early();
+    test_spatial_index_visitor_radius_search_matches_vector();
+    test_spatial_index_visitor_search_supports_move_only_values();
+    test_spatial_index_visitor_queries_on_empty_index();
     return 0;
 }

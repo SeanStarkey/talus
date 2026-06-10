@@ -56,6 +56,7 @@ enum class MenuChoice {
     clear_index,
     import_help,
     rebuild_index,
+    filtered_search,
     quit,
     unknown
 };
@@ -564,6 +565,35 @@ void search_index(const Index& index) {
     }
 }
 
+// Exercises the visitor query API: a custom predicate (category filter) is
+// applied during traversal, and a bool-returning visitor stops the search
+// early once enough matches have been printed — no result vector is built.
+void filtered_search(const Index& index) {
+    const Box query = read_query_box();
+    const std::string category = read_line("category (empty for any): ");
+    const std::size_t limit = read_positive_integer("max matches to print: ");
+
+    std::cout << "Query ";
+    print_box(query);
+    std::cout << " filtered by category \""
+              << (category.empty() ? "<any>" : category) << "\":\n";
+
+    std::size_t printed = 0;
+    const std::size_t visited = index.search(query, [&](const DriverGeometry& geometry) {
+        if (!category.empty() && geometry.category != category) {
+            return true;  // geometric match, wrong category — keep going
+        }
+        print_geometry(geometry);
+        ++printed;
+        return printed < limit;  // stop traversal once the cap is reached
+    });
+
+    std::cout << "Printed " << printed << " of " << visited
+              << " geometries visited before the search "
+              << (printed < limit ? "ran out of matches" : "stopped at the cap")
+              << ".\n";
+}
+
 void radius_search(const Index& index) {
     const Point query = read_query_point();
     if (looks_like_reversed_lat_lon(query)) {
@@ -729,6 +759,7 @@ void print_menu(const Index& index) {
         << "8. Clear index\n"
         << "9. Show JSON import format\n"
         << "10. Rebuild index (STR bulk load)\n"
+        << "11. Filtered search (visitor with category predicate and match cap)\n"
         << "0. Quit\n"
         << "Choice: ";
 }
@@ -744,6 +775,7 @@ void print_menu(const Index& index) {
     if (choice == "8") return MenuChoice::clear_index;
     if (choice == "9") return MenuChoice::import_help;
     if (choice == "10") return MenuChoice::rebuild_index;
+    if (choice == "11") return MenuChoice::filtered_search;
     if (choice == "0" || choice == "q" || choice == "quit") return MenuChoice::quit;
 
     return MenuChoice::unknown;
@@ -806,6 +838,9 @@ int main(int argc, char** argv) {
                     break;
                 case MenuChoice::rebuild_index:
                     rebuild_index(index, records);
+                    break;
+                case MenuChoice::filtered_search:
+                    filtered_search(index);
                     break;
                 case MenuChoice::quit:
                     running = false;

@@ -180,7 +180,21 @@ After Insert, Search, NearestNeighbor, and RadiusSearch are solid, add to `algor
    k-th distance is unspecified. Covered by detail-level tests and tie-free
    fixture plus randomized brute-force-oracle tests that compare exact
    ascending-distance ordering.
-5. Custom query predicates / visitor traversal
+5. Completed: Custom query predicates / visitor traversal — the public
+   `QueryVisitor<Visitor, T>` concept (`concepts.hpp`) accepts callables taking
+   `const T&` and returning either void (visit every match) or a type
+   convertible to bool (return false to stop the traversal early; the stopping
+   value is included in the returned count). Exposed as visitor overloads
+   `SpatialIndex::search(bounds, visitor)`, `within(bounds, visitor)`, and
+   `radius_search(query, radius, visitor)`, each returning the number of values
+   visited. Matches are visited by const reference in unspecified order without
+   copying, so visitor queries work with move-only `T` and let callers apply
+   custom predicates or aggregate in place. The detail traversals
+   (`detail::search` / `detail::radius_search`) propagate the early-stop signal
+   through `visit_detail::visit_value`, which normalizes void- and
+   bool-returning visitors. Covered by brute-force-oracle tests (randomized
+   rectangle and radius queries), predicate-filtering, early-stop, move-only,
+   empty-index, and validation-throw tests.
 
 ### 8. Add Examples and Benchmarks
 
@@ -240,7 +254,6 @@ comparison. They are intentionally deferred past the v0.1.x line.
 
 ## Next Concrete Task
 
-Finish section 7 with custom query predicates / visitor traversal: design the
-public visitor-based query API over the existing `detail::search` /
-`detail::radius_search` visitor hooks so callers can filter or consume matches
-without materializing a `std::vector<T>` copy.
+Section 7 is complete. Continue section 8: add examples for custom coordinate
+extractors, which first requires wiring the `CoordExtractor` concept (defined
+in `concepts.hpp` but not yet used) into `SpatialIndex`.

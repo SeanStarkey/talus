@@ -9,6 +9,7 @@
 /// directly.
 
 #include <concepts>
+#include <type_traits>
 #include "geometry.hpp"
 
 namespace talus {
@@ -62,6 +63,16 @@ concept Pointlike = HasXY<T> || HasLatLon<T>;
 /// so `Indexable<T, Scalar>` accepts bounds that can be cast to `Scalar`.
 template<typename T, typename Scalar = double>
 concept Indexable = Pointlike<T> || HasBoundsAny<T>;
+
+/// @brief Matches callables usable as query visitors over stored values of type `T`.
+///
+/// A query visitor is invoked with `const T&` for each match. It either returns
+/// `void` (every match is visited) or a type convertible to `bool` (returning
+/// `false` stops the traversal early).
+template<typename Visitor, typename T>
+concept QueryVisitor = std::invocable<Visitor&, const T&>
+    && (std::is_void_v<std::invoke_result_t<Visitor&, const T&>>
+        || std::convertible_to<std::invoke_result_t<Visitor&, const T&>, bool>);
 
 /// @brief Matches callables that extract a bounding box from otherwise opaque types.
 ///

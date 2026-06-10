@@ -14,6 +14,7 @@
 #include <limits>
 #include <numeric>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -865,44 +866,70 @@ RTreeDeleteResult<RTreeNode<T, Scalar, MaxChildren>> erase(
     return {&root, true, condensed_nodes, reinserted};
 }
 
+namespace visit_detail {
+
+/// Invokes `visitor` on a matched value and normalizes the result: a
+/// void-returning visitor always continues the traversal, while a visitor
+/// returning something convertible to bool requests a stop by returning false.
+template<typename Visitor, typename T>
+bool visit_value(Visitor& visitor, const T& value) {
+    if constexpr (std::is_void_v<std::invoke_result_t<Visitor&, const T&>>) {
+        visitor(value);
+        return true;
+    } else {
+        return static_cast<bool>(visitor(value));
+    }
+}
+
+} // namespace visit_detail
+
 namespace search_detail {
 
+// Returns false when the visitor requested an early stop, true otherwise.
+// `matches` counts every visited value, including the one that stopped.
 template<typename T, typename Scalar, std::size_t MaxChildren, typename Visitor>
-std::size_t search_impl(
+bool search_impl(
     const RTreeNode<T, Scalar, MaxChildren>& node,
     BoundingBox<Scalar> query_bounds,
-    Visitor& visitor) {
+    Visitor& visitor,
+    std::size_t& matches) {
     if (node.empty() || !node.bounds().intersects(query_bounds)) {
-        return 0;
+        return true;
     }
 
-    std::size_t matches = 0;
     if (node.is_leaf()) {
         for (const auto& entry : node.values()) {
             if (entry.bounds.intersects(query_bounds)) {
-                visitor(entry.value());
                 ++matches;
+                if (!visit_detail::visit_value(visitor, entry.value())) {
+                    return false;
+                }
             }
         }
-        return matches;
+        return true;
     }
 
     for (const auto& entry : node.children()) {
         TALUS_ASSERT(entry.child != nullptr);
-        if (entry.bounds.intersects(query_bounds)) {
-            matches += search_impl(*entry.child, query_bounds, visitor);
+        if (entry.bounds.intersects(query_bounds)
+            && !search_impl(*entry.child, query_bounds, visitor, matches)) {
+            return false;
         }
     }
-    return matches;
+    return true;
 }
 
 } // namespace search_detail
 
 /// @brief Visits each value whose stored bounds intersect `query_bounds`.
 ///
-/// Returns the number of matching leaf entries. Traversal prunes any subtree
+/// Returns the number of visited leaf entries. Traversal prunes any subtree
 /// whose stored bounds do not intersect the query rectangle. Boundary-touching
 /// boxes are considered matches, matching `BoundingBox::intersects`.
+///
+/// The visitor either returns void (every match is visited) or a type
+/// convertible to bool — returning false stops the traversal early, and the
+/// value that requested the stop is included in the returned count.
 template<typename T, typename Scalar, std::size_t MaxChildren, typename Visitor>
 std::size_t search(
     const RTreeNode<T, Scalar, MaxChildren>& root,
@@ -910,39 +937,46 @@ std::size_t search(
     Visitor&& visitor) {
     TALUS_ASSERT(query_bounds.is_valid());
 
-    return search_detail::search_impl(root, query_bounds, visitor);
+    std::size_t matches = 0;
+    search_detail::search_impl(root, query_bounds, visitor, matches);
+    return matches;
 }
 
 namespace radius_search_detail {
 
+// Returns false when the visitor requested an early stop, true otherwise.
+// `matches` counts every visited value, including the one that stopped.
 template<typename T, typename Scalar, std::size_t MaxChildren, typename Visitor>
-std::size_t radius_search_impl(
+bool radius_search_impl(
     const RTreeNode<T, Scalar, MaxChildren>& node,
     Point<Scalar> query,
     Scalar radius_sq,
-    Visitor& visitor) {
+    Visitor& visitor,
+    std::size_t& matches) {
     if (node.empty() || node.bounds().min_sq_distance(query) > radius_sq) {
-        return 0;
+        return true;
     }
 
-    std::size_t matches = 0;
     if (node.is_leaf()) {
         for (const auto& entry : node.values()) {
             if (entry.bounds.min_sq_distance(query) <= radius_sq) {
-                visitor(entry.value());
                 ++matches;
+                if (!visit_detail::visit_value(visitor, entry.value())) {
+                    return false;
+                }
             }
         }
-        return matches;
+        return true;
     }
 
     for (const auto& entry : node.children()) {
         TALUS_ASSERT(entry.child != nullptr);
-        if (entry.bounds.min_sq_distance(query) <= radius_sq) {
-            matches += radius_search_impl(*entry.child, query, radius_sq, visitor);
+        if (entry.bounds.min_sq_distance(query) <= radius_sq
+            && !radius_search_impl(*entry.child, query, radius_sq, visitor, matches)) {
+            return false;
         }
     }
-    return matches;
+    return true;
 }
 
 } // namespace radius_search_detail
@@ -952,6 +986,10 @@ std::size_t radius_search_impl(
 /// Distance is measured from the query point to each stored bounding box using
 /// squared Euclidean distance. Values whose bounds contain the query point have
 /// distance zero, and values exactly on the radius boundary are included.
+///
+/// The visitor either returns void (every match is visited) or a type
+/// convertible to bool — returning false stops the traversal early, and the
+/// value that requested the stop is included in the returned count.
 template<typename T, typename Scalar, std::size_t MaxChildren, typename Visitor>
 std::size_t radius_search(
     const RTreeNode<T, Scalar, MaxChildren>& root,
@@ -961,7 +999,9 @@ std::size_t radius_search(
     TALUS_ASSERT(radius >= Scalar{0});
 
     const Scalar radius_sq = radius * radius;
-    return radius_search_detail::radius_search_impl(root, query, radius_sq, visitor);
+    std::size_t matches = 0;
+    radius_search_detail::radius_search_impl(root, query, radius_sq, visitor, matches);
+    return matches;
 }
 
 namespace nearest_detail {

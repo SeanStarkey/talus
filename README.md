@@ -11,9 +11,9 @@ A zero-dependency, header-only C++20 spatial index library. Drop it in, include 
 > **Status: early development (v0.1.0, in progress).** Working today: automatic
 > type detection, `insert`, STR bulk loading with `bulk_load`, rectangle
 > (`within`) queries, radius searches, nearest-neighbor and k-nearest queries,
-> and deletion with `erase`, validated against a brute-force oracle. Custom
-> query visitors and the k-d tree are **planned, not yet
-> implemented** — see the [Roadmap](#roadmap).
+> visitor-based queries with custom predicates and early termination, and
+> deletion with `erase`, validated against a brute-force oracle. The k-d tree
+> is **planned, not yet implemented** — see the [Roadmap](#roadmap).
 > [PLAN.md](PLAN.md) is the source of truth for what is and isn't done.
 
 ---
@@ -47,6 +47,13 @@ int main() {
     // Radius query — returns std::vector<Restaurant>
     auto nearby = index.radius_search({-104.80, 38.82}, 0.03);
 
+    // Visitor query — apply any predicate in place, no result vector built;
+    // return false from a bool visitor to stop the traversal early
+    std::size_t cafes = 0;
+    index.search({{-104.85, 38.80}, {-104.78, 38.88}}, [&](const Restaurant& r) {
+        if (r.name.starts_with("Café")) ++cafes;
+    });
+
     // Delete one equal stored value — returns true when a value was removed
     bool erased = index.erase({-104.81, 38.84, "Pizza on Pikes"});
 }
@@ -66,7 +73,7 @@ int main() {
 | Nearest neighbor | ✓ | ✓ | ✓ | ✗ |
 | k-nearest (k>1) | ✓ | ✓ | ✓ | ✗ |
 | Radius search | ✓ | ✓ | ✓ | ✗ |
-| Custom query predicates / visitor | ◐ | ✓ | ✗ | ✓ |
+| Custom query predicates / visitor | ✓ | ✓ | ✗ | ✓ |
 | R*-tree | ✓ | ✓ | ✗ | ✗ |
 | k-d tree | ◐ | ✗ | ✓ | ✗ |
 | Delete / removal | ✓ | ✓ | ✗ | ✓ |
@@ -76,9 +83,9 @@ int main() {
 
 **Talus column: ✓ available now · ◐ planned ([Roadmap](#roadmap)).** Competitor
 columns describe their released features. Talus ships insert, STR bulk loading,
-range query, radius search, nearest-neighbor and k-nearest queries, and
-deletion today; custom query predicates are near-term roadmap work, while
-N-dimensional support and serialization are longer-range (post-1.0) items.
+range query, radius search, nearest-neighbor and k-nearest queries, visitor
+queries with custom predicates, and deletion today; N-dimensional support and
+serialization are longer-range (post-1.0) items.
 *RTree.h* is the widely-vendored single-header R-tree (Guttman-style, e.g.
 `nushoin/RTree`): a plain R-tree with a callback-based rectangle search, removal,
 and save/load, configured through raw template parameters and min/max arrays
@@ -183,6 +190,15 @@ std::vector<T> within(BoundingBox<Scalar> query) const;  // alias for search
 // Radius query — returns std::vector<T> (requires copy-constructible T)
 std::vector<T> radius_search(Point<Scalar> query, Scalar radius) const;
 
+// Visitor queries — invoke the visitor with const T& for each match instead of
+// returning a vector; work with move-only T. Return the number of values visited.
+template<QueryVisitor<T> Visitor>
+std::size_t search(BoundingBox<Scalar> query, Visitor&& visitor) const;
+template<QueryVisitor<T> Visitor>
+std::size_t within(BoundingBox<Scalar> query, Visitor&& visitor) const;  // alias
+template<QueryVisitor<T> Visitor>
+std::size_t radius_search(Point<Scalar> query, Scalar radius, Visitor&& visitor) const;
+
 // Single nearest-neighbor query — returns std::optional<T> (requires copy-constructible T)
 std::optional<T> nearest_neighbor(Point<Scalar> query) const;
 
@@ -222,16 +238,15 @@ it returns them all; `k == 0` returns an empty vector. The order of equidistant
 values — and which are kept when more than `k` tie at the k-th distance — is
 unspecified.
 
-### Planned (not yet implemented)
-
-```cpp
-// Allocation-free visitor variants, for hot paths
-template<std::invocable<const T&> Fn>
-void for_each_within(BoundingBox<Scalar> query, Fn&& fn) const;
-
-template<std::invocable<const T&> Fn>
-void for_each_nearest(Point<Scalar> query, std::size_t k, Fn&& fn) const;
-```
+The visitor overloads of `search`, `within`, and `radius_search` traverse the
+tree without materializing a result vector: the visitor is invoked with
+`const T&` for each match, in unspecified order, so it can filter on arbitrary
+predicates, aggregate in place, or collect into its own container. A visitor
+satisfies the `talus::QueryVisitor` concept by returning either `void` (every
+match is visited) or a type convertible to `bool` — returning `false` stops the
+traversal early, and the stopping value is included in the returned count.
+Because no copies are made, visitor queries are the way to query indexes of
+move-only types.
 
 ---
 
@@ -279,8 +294,10 @@ ASan+UBSan suite, and runs the tests under Valgrind, on every push and pull requ
 Talus includes a small command-line driver that exercises the currently exposed
 public API. It loads seeded example geometries, can import additional JSON data,
 and lets you list records, run bounding-box searches, run radius searches, find
-the nearest geometry (or k nearest geometries) to a query point, erase a
-geometry by id, clear the index, and view the supported import format.
+the nearest geometry (or k nearest geometries) to a query point, run a
+visitor-based filtered search (category predicate plus an early-stop match
+cap), erase a geometry by id, clear the index, and view the supported import
+format.
 
 ```bash
 cmake -B build -DTALUS_BUILD_EXAMPLES=ON
@@ -302,7 +319,7 @@ To run it with the sample JSON import file:
 - [x] C++20 concept-based type detection
 - [x] R*-tree core (insert, range query, radius search, single nearest neighbor, delete)
 - [x] k-nearest queries
-- [ ] Custom query predicates / visitor
+- [x] Custom query predicates / visitor
 - [x] Delete and reinsertion
 - [x] STR bulk loading
 - [ ] k-d tree
