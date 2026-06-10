@@ -80,6 +80,7 @@ Nodes are `alignas(64)` structs (one cache line). The union between `children` (
 - Read nearby code before editing, and follow existing patterns.
 - Summarize changed behavior and verification steps when finishing work.
 - Update PLAN.md with any changes.
+- When a new feature is added, also update README.md (status note, "Why Talus" table, API reference, roadmap) and add a matching menu option to the example driver (`examples/talus_driver.cpp`) where the feature can be exercised interactively.
 - If tests cannot be run because none exist, say so and describe the manual check used instead.
 - All new test functions should include a short header block that names the test and describes the behavior or invariant being verified in enough detail for future maintainers to understand the intent.
 - When Codex makes code changes and is asked to create a git commit, include `Co-authored-by: Codex <codex@openai.com>` in the commit message.
