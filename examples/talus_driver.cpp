@@ -637,6 +637,20 @@ void list_records(const std::vector<DriverGeometry>& records) {
     }
 }
 
+void rebuild_index(Index& index, const std::vector<DriverGeometry>& records) {
+    if (records.empty()) {
+        std::cout << "No geometries loaded.\n";
+        return;
+    }
+
+    // bulk_load requires an empty index, so drop the current tree first; the
+    // records list is the authoritative copy of everything indexed.
+    index.clear();
+    index.bulk_load(records);
+    std::cout << "Rebuilt index from " << records.size()
+              << " geometries with STR bulk load.\n";
+}
+
 void print_import_help() {
     std::cout
         << "JSON import accepts either an array or {\"geometries\": [...]}.\n"
@@ -660,6 +674,7 @@ void print_menu(const Index& index) {
         << "6. Erase geometry by id\n"
         << "7. Clear index\n"
         << "8. Show JSON import format\n"
+        << "9. Rebuild index (STR bulk load)\n"
         << "0. Quit\n"
         << "Choice: ";
 }
@@ -708,6 +723,8 @@ int main(int argc, char** argv) {
                     std::cout << "Index cleared.\n";
                 } else if (choice == "8") {
                     print_import_help();
+                } else if (choice == "9") {
+                    rebuild_index(index, records);
                 } else if (choice == "0" || choice == "q" || choice == "quit") {
                     break;
                 } else {

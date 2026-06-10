@@ -33,7 +33,8 @@ The following scaffolding directories currently contain placeholder CMake files:
 
 `examples/` now includes `talus_driver`, a menu-driven command-line
 program that exercises the current public `SpatialIndex` API with seeded data,
-rectangular search, erase-by-id deletion, clearing, size/empty reporting, and
+rectangular search, erase-by-id deletion, clearing, size/empty reporting,
+STR bulk-load rebuilds of the loaded records, and
 JSON import for mixed point, lat/lon, box, and segment records. The example datasets include Colorado
 14er and ranked Colorado 13er summit coordinates.
 
