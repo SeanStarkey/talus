@@ -45,6 +45,20 @@ struct DriverGeometry {
 
 using Index = talus::SpatialIndex<DriverGeometry, Scalar, 9>;
 
+enum class MenuChoice {
+    list_records,
+    search,
+    nearest_neighbor,
+    radius_search,
+    import_json,
+    erase_record,
+    clear_index,
+    import_help,
+    rebuild_index,
+    quit,
+    unknown
+};
+
 struct Json;
 using JsonArray = std::vector<Json>;
 using JsonObject = std::map<std::string, Json>;
@@ -651,6 +665,12 @@ void rebuild_index(Index& index, const std::vector<DriverGeometry>& records) {
               << " geometries with STR bulk load.\n";
 }
 
+void clear_index(Index& index, std::vector<DriverGeometry>& records) {
+    index.clear();
+    records.clear();
+    std::cout << "Index cleared.\n";
+}
+
 void print_import_help() {
     std::cout
         << "JSON import accepts either an array or {\"geometries\": [...]}.\n"
@@ -679,6 +699,21 @@ void print_menu(const Index& index) {
         << "Choice: ";
 }
 
+[[nodiscard]] MenuChoice menu_choice(std::string_view choice) noexcept {
+    if (choice == "1") return MenuChoice::list_records;
+    if (choice == "2") return MenuChoice::search;
+    if (choice == "3") return MenuChoice::nearest_neighbor;
+    if (choice == "4") return MenuChoice::radius_search;
+    if (choice == "5") return MenuChoice::import_json;
+    if (choice == "6") return MenuChoice::erase_record;
+    if (choice == "7") return MenuChoice::clear_index;
+    if (choice == "8") return MenuChoice::import_help;
+    if (choice == "9") return MenuChoice::rebuild_index;
+    if (choice == "0" || choice == "q" || choice == "quit") return MenuChoice::quit;
+
+    return MenuChoice::unknown;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -696,7 +731,8 @@ int main(int argc, char** argv) {
             }
         }
 
-        while (true) {
+        bool running = true;
+        while (running) {
             print_menu(index);
             std::string choice;
             if (!std::getline(std::cin, choice)) {
@@ -705,30 +741,40 @@ int main(int argc, char** argv) {
             }
 
             try {
-                if (choice == "1") {
+                switch (menu_choice(choice)) {
+                case MenuChoice::list_records:
                     list_records(records);
-                } else if (choice == "2") {
-                    search_index(index);
-                } else if (choice == "3") {
-                    nearest_neighbor(index);
-                } else if (choice == "4") {
-                    radius_search(index);
-                } else if (choice == "5") {
-                    import_json(index, records);
-                } else if (choice == "6") {
-                    erase_record(index, records);
-                } else if (choice == "7") {
-                    index.clear();
-                    records.clear();
-                    std::cout << "Index cleared.\n";
-                } else if (choice == "8") {
-                    print_import_help();
-                } else if (choice == "9") {
-                    rebuild_index(index, records);
-                } else if (choice == "0" || choice == "q" || choice == "quit") {
                     break;
-                } else {
+                case MenuChoice::search:
+                    search_index(index);
+                    break;
+                case MenuChoice::nearest_neighbor:
+                    nearest_neighbor(index);
+                    break;
+                case MenuChoice::radius_search:
+                    radius_search(index);
+                    break;
+                case MenuChoice::import_json:
+                    import_json(index, records);
+                    break;
+                case MenuChoice::erase_record:
+                    erase_record(index, records);
+                    break;
+                case MenuChoice::clear_index:
+                    clear_index(index, records);
+                    break;
+                case MenuChoice::import_help:
+                    print_import_help();
+                    break;
+                case MenuChoice::rebuild_index:
+                    rebuild_index(index, records);
+                    break;
+                case MenuChoice::quit:
+                    running = false;
+                    break;
+                case MenuChoice::unknown:
                     std::cout << "Unknown menu choice.\n";
+                    break;
                 }
             } catch (const std::exception& ex) {
                 std::cout << "error: " << ex.what() << "\n";
