@@ -61,6 +61,16 @@ void assert_same_ids(std::vector<T> actual, std::vector<T> expected) {
     TALUS_CHECK(sorted_ids(std::move(actual)) == sorted_ids(std::move(expected)));
 }
 
+// Compares id sequences without sorting, so result ordering must match too.
+// Only valid for tie-free queries, where ascending-distance order is unique.
+template<typename T>
+void assert_same_ordered_ids(const std::vector<T>& actual, const std::vector<T>& expected) {
+    TALUS_CHECK(actual.size() == expected.size());
+    for (std::size_t i = 0; i < actual.size(); ++i) {
+        TALUS_CHECK(actual[i].id == expected[i].id);
+    }
+}
+
 template<typename T>
 void assert_same_optional_id(const std::optional<T>& actual, const std::optional<T>& expected) {
     TALUS_CHECK(actual.has_value() == expected.has_value());
@@ -537,6 +547,111 @@ void test_spatial_index_randomized_nearest_neighbor_matches_brute_force() {
     }
 }
 
+// Test: test_spatial_index_nearest_neighbors_matches_brute_force_fixture
+// Verifies deterministic k-nearest queries return the same values in the same
+// ascending-distance order as the linear-scan oracle, across k values below,
+// at, and above the index size, for both point and bounded-geometry records.
+// Also verifies k == 0 and an empty index return empty results. All fixture
+// queries are tie-free, so result order is fully determined and the comparison
+// can be exact rather than set-based.
+void test_spatial_index_nearest_neighbors_matches_brute_force_fixture() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+
+    TALUS_CHECK(index.nearest_neighbors(talus::Point<double>{0.0, 0.0}, 3).empty());
+
+    const std::vector<PointRecord> points{
+        {-20.0, -20.0, 1},
+        {-4.0, -2.0, 2},
+        {0.0, 0.0, 3},
+        {3.0, 4.0, 4},
+        {10.0, 10.0, 5},
+        {50.0, 0.0, 6},
+        {80.0, 80.0, 7}
+    };
+
+    for (const PointRecord& point : points) {
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    const std::vector<talus::Point<double>> queries{
+        {-19.0, -18.0},
+        {2.0, 3.0},
+        {12.0, 9.0},
+        {55.0, -2.0},
+        {100.0, 100.0}
+    };
+
+    for (talus::Point<double> query : queries) {
+        TALUS_CHECK(index.nearest_neighbors(query, 0).empty());
+        for (std::size_t k : {std::size_t{1}, std::size_t{3}, points.size(), points.size() + 5}) {
+            assert_same_ordered_ids(index.nearest_neighbors(query, k),
+                                    oracle.nearest_neighbors(query, k));
+        }
+    }
+
+    // Bounded geometries rank by box distance: a query inside a stored box is
+    // at distance zero and sorts first.
+    talus::SpatialIndex<BoundedRecord, double, 4> box_index;
+    talus::test::BruteForceIndex<BoundedRecord, double> box_oracle;
+
+    const std::vector<BoundedRecord> records{
+        {1, {{0.0, 0.0}, {2.0, 2.0}}},
+        {2, {{10.0, 10.0}, {20.0, 20.0}}},
+        {3, {{30.0, 30.0}, {31.0, 31.0}}},
+        {4, {{-20.0, -20.0}, {-10.0, -10.0}}},
+        {5, {{5.0, 40.0}, {8.0, 50.0}}}
+    };
+
+    for (const BoundedRecord& record : records) {
+        box_index.insert(record);
+        box_oracle.insert(record);
+    }
+
+    const talus::Point<double> inside{15.0, 12.0};
+    assert_same_ordered_ids(box_index.nearest_neighbors(inside, 3),
+                            box_oracle.nearest_neighbors(inside, 3));
+    TALUS_CHECK(box_index.nearest_neighbors(inside, 1).front().id == 2);
+}
+
+// Test: test_spatial_index_randomized_nearest_neighbors_matches_brute_force
+// Verifies k-nearest queries agree with the brute-force oracle — same values,
+// same ascending-distance order — across randomized unique point data, many
+// split/subtree layouts, and varying k. Coordinates are perturbed per id so
+// distances are tie-free and exact ordered comparison is valid.
+void test_spatial_index_randomized_nearest_neighbors_matches_brute_force() {
+    talus::SpatialIndex<PointRecord, double, 6> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    std::mt19937 rng(24242);
+    std::uniform_real_distribution<double> coord(-1000.0, 1000.0);
+
+    for (int id = 0; id < 500; ++id) {
+        // The small deterministic offset prevents exact ties from duplicate
+        // generated coordinates while keeping the fixture effectively random.
+        const PointRecord point{
+            coord(rng) + static_cast<double>(id) * 1.0e-6,
+            coord(rng) - static_cast<double>(id) * 1.0e-6,
+            id
+        };
+        index.insert(point);
+        oracle.insert(point);
+    }
+
+    std::uniform_int_distribution<std::size_t> k_dist(1, 25);
+    for (std::size_t i = 0; i < 200; ++i) {
+        const talus::Point<double> query{coord(rng), coord(rng)};
+        const std::size_t k = k_dist(rng);
+        assert_same_ordered_ids(index.nearest_neighbors(query, k),
+                                oracle.nearest_neighbors(query, k));
+    }
+
+    // k >= size returns every value, fully ordered by distance.
+    const talus::Point<double> query{coord(rng), coord(rng)};
+    assert_same_ordered_ids(index.nearest_neighbors(query, 10000),
+                            oracle.nearest_neighbors(query, 10000));
+}
+
 // Test: test_spatial_index_is_movable
 // Verifies SpatialIndex is move-constructible and move-assignable with the tree
 // intact. The index is built large enough to force a multi-level internal tree,
@@ -634,6 +749,15 @@ void test_spatial_index_throws_on_invalid_geometry() {
     threw = false;
     try {
         (void)index.nearest_neighbor(talus::Point<double>{0.0, nan});
+    } catch (const talus::invalid_geometry&) {
+        threw = true;
+    }
+    TALUS_CHECK(threw);
+
+    // Non-finite k-nearest query.
+    threw = false;
+    try {
+        (void)index.nearest_neighbors(talus::Point<double>{nan, 0.0}, 3);
     } catch (const talus::invalid_geometry&) {
         threw = true;
     }
@@ -928,6 +1052,8 @@ int main() {
     test_spatial_index_nearest_neighbor_matches_brute_force_fixture();
     test_spatial_index_nearest_neighbor_matches_bounded_geometry_oracle();
     test_spatial_index_randomized_nearest_neighbor_matches_brute_force();
+    test_spatial_index_nearest_neighbors_matches_brute_force_fixture();
+    test_spatial_index_randomized_nearest_neighbors_matches_brute_force();
     test_spatial_index_is_movable();
     test_spatial_index_throws_on_invalid_geometry();
     test_spatial_index_handles_large_boxed_values();

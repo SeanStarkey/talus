@@ -106,6 +106,28 @@ public:
         return *nearest;
     }
 
+    [[nodiscard]] std::vector<T> nearest_neighbors(Point<Scalar> query, std::size_t k) const
+        requires std::copy_constructible<T> {
+        std::vector<std::pair<Scalar, const T*>> ranked;
+        ranked.reserve(values_.size());
+        for (const T& value : values_) {
+            ranked.emplace_back(bounding_box_of<Scalar>(value).min_sq_distance(query), &value);
+        }
+
+        std::stable_sort(ranked.begin(), ranked.end(),
+            [](const auto& lhs, const auto& rhs) {
+                return lhs.first < rhs.first;
+            });
+
+        std::vector<T> matches;
+        const std::size_t count = std::min(k, ranked.size());
+        matches.reserve(count);
+        for (std::size_t i = 0; i < count; ++i) {
+            matches.push_back(*ranked[i].second);
+        }
+        return matches;
+    }
+
 private:
     std::vector<T> values_{};
 };

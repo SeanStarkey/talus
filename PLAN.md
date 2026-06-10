@@ -21,8 +21,8 @@ to operate on in-source builds.
 The R-tree implementation has storage primitives, the first algorithm slice, and
 the minimal public wrapper. Node layout, overlap-aware ChooseLeaf, non-splitting
 Insert, the low-level SplitNode primitive, AdjustTree split propagation, Search,
-NearestNeighbor, RadiusSearch, Delete, STR bulk load, and public `SpatialIndex`
-insert/search/nearest-neighbor/radius-search/erase/bulk-load are in place. ChooseSubtree and the
+NearestNeighbor, k-nearest queries, RadiusSearch, Delete, STR bulk load, and public `SpatialIndex`
+insert/search/nearest-neighbor/k-nearest/radius-search/erase/bulk-load are in place. ChooseSubtree and the
 split-index selection use a margin (half-perimeter) tie-breaker so point and
 axis-aligned data — where bounding boxes have zero area — are still ranked
 spatially instead of collapsing to the entry-count fallback.
@@ -33,7 +33,8 @@ The following scaffolding directories currently contain placeholder CMake files:
 
 `examples/` now includes `talus_driver`, a menu-driven command-line
 program that exercises the current public `SpatialIndex` API with seeded data,
-rectangular search, erase-by-id deletion, clearing, size/empty reporting,
+rectangular search, nearest-neighbor and k-nearest queries, radius search,
+erase-by-id deletion, clearing, size/empty reporting,
 STR bulk-load rebuilds of the loaded records, and
 JSON import for mixed point, lat/lon, box, and segment records. The example datasets include Colorado
 14er and ranked Colorado 13er summit coordinates.
@@ -168,7 +169,17 @@ After Insert, Search, NearestNeighbor, and RadiusSearch are solid, add to `algor
    invariant tests (uniform leaf depth, fill bounds, parent links, bounds
    unions) and public brute-force-oracle tests, including post-load
    insert/erase interoperation.
-4. k-nearest (k>1) queries
+4. Completed: k-nearest (k>1) queries — `detail::k_nearest_neighbors` reuses
+   the single-nearest traversal shape (children visited in increasing
+   minimum-distance order) with a size-k max-heap of the best candidates;
+   subtrees farther than the current k-th best distance are pruned. Exposed
+   publicly as `SpatialIndex::nearest_neighbors(query, k)`, which validates
+   the query point (`invalid_geometry` on non-finite coordinates) and returns
+   `std::vector<T>` sorted by ascending box distance (`k == 0`, or an empty
+   index, returns empty; `k > size()` returns everything). Tie order at the
+   k-th distance is unspecified. Covered by detail-level tests and tie-free
+   fixture plus randomized brute-force-oracle tests that compare exact
+   ascending-distance ordering.
 5. Custom query predicates / visitor traversal
 
 ### 8. Add Examples and Benchmarks
@@ -229,7 +240,7 @@ comparison. They are intentionally deferred past the v0.1.x line.
 
 ## Next Concrete Task
 
-Continue with the remaining R*-tree algorithms now that STR bulk load is in.
-Next, implement k-nearest (k>1) queries in
-`include/talus/detail/algorithms.hpp`, expose the matching public wrapper
-method, and compare results against the brute-force oracle.
+Finish section 7 with custom query predicates / visitor traversal: design the
+public visitor-based query API over the existing `detail::search` /
+`detail::radius_search` visitor hooks so callers can filter or consume matches
+without materializing a `std::vector<T>` copy.

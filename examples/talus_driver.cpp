@@ -49,6 +49,7 @@ enum class MenuChoice {
     list_records,
     search,
     nearest_neighbor,
+    k_nearest,
     radius_search,
     import_json,
     erase_record,
@@ -494,21 +495,25 @@ void print_geometry(const DriverGeometry& geometry) {
     return line;
 }
 
-[[nodiscard]] std::size_t read_record_id() {
+[[nodiscard]] std::size_t read_positive_integer(std::string_view prompt) {
     while (true) {
-        const std::string line = read_line("record id: ");
+        const std::string line = read_line(prompt);
         std::istringstream input(line);
         // Parse as signed so negative input is rejected here rather than
         // wrapping to a huge value, as extraction into an unsigned type would.
-        long long id = 0;
-        input >> id;
+        long long value = 0;
+        input >> value;
         const bool parsed = !input.fail();
         input >> std::ws;
-        if (parsed && input.eof() && id > 0) {
-            return static_cast<std::size_t>(id);
+        if (parsed && input.eof() && value > 0) {
+            return static_cast<std::size_t>(value);
         }
-        std::cout << "Please enter a positive integer id.\n";
+        std::cout << "Please enter a positive integer.\n";
     }
+}
+
+[[nodiscard]] std::size_t read_record_id() {
+    return read_positive_integer("record id: ");
 }
 
 [[nodiscard]] Box read_query_box() {
@@ -611,6 +616,34 @@ void nearest_neighbor(const Index& index) {
     }
 }
 
+void k_nearest(const Index& index) {
+    const Point query = read_query_point();
+    if (looks_like_reversed_lat_lon(query)) {
+        std::cout << "Note: that looks like latitude/longitude order. Talus queries use "
+                  << "x/longitude first and y/latitude second; try ("
+                  << query.y << ", " << query.x << ") if this result looks wrong.\n";
+    }
+
+    const std::size_t k = read_positive_integer("k (number of neighbors): ");
+    const std::vector<DriverGeometry> matches = index.nearest_neighbors(query, k);
+
+    std::cout << "Nearest " << k << " stored bounds to ("
+              << query.x << ", " << query.y << "), nearest first:\n";
+    if (matches.empty()) {
+        std::cout << "No geometries loaded.\n";
+        return;
+    }
+    if (matches.size() < k) {
+        std::cout << "(only " << matches.size() << " geometries loaded)\n";
+    }
+
+    for (const DriverGeometry& geometry : matches) {
+        print_geometry(geometry);
+        std::cout << "     squared distance to stored bounds: "
+                  << geometry.bounds().min_sq_distance(query) << "\n";
+    }
+}
+
 void erase_record(Index& index, std::vector<DriverGeometry>& records) {
     if (records.empty()) {
         std::cout << "No geometries loaded.\n";
@@ -689,12 +722,13 @@ void print_menu(const Index& index) {
         << "1. List loaded geometries\n"
         << "2. Search with bounding box\n"
         << "3. Nearest neighbor from x/lon, y/lat\n"
-        << "4. Radius search from x/lon, y/lat\n"
-        << "5. Import JSON file\n"
-        << "6. Erase geometry by id\n"
-        << "7. Clear index\n"
-        << "8. Show JSON import format\n"
-        << "9. Rebuild index (STR bulk load)\n"
+        << "4. k nearest neighbors from x/lon, y/lat\n"
+        << "5. Radius search from x/lon, y/lat\n"
+        << "6. Import JSON file\n"
+        << "7. Erase geometry by id\n"
+        << "8. Clear index\n"
+        << "9. Show JSON import format\n"
+        << "10. Rebuild index (STR bulk load)\n"
         << "0. Quit\n"
         << "Choice: ";
 }
@@ -703,12 +737,13 @@ void print_menu(const Index& index) {
     if (choice == "1") return MenuChoice::list_records;
     if (choice == "2") return MenuChoice::search;
     if (choice == "3") return MenuChoice::nearest_neighbor;
-    if (choice == "4") return MenuChoice::radius_search;
-    if (choice == "5") return MenuChoice::import_json;
-    if (choice == "6") return MenuChoice::erase_record;
-    if (choice == "7") return MenuChoice::clear_index;
-    if (choice == "8") return MenuChoice::import_help;
-    if (choice == "9") return MenuChoice::rebuild_index;
+    if (choice == "4") return MenuChoice::k_nearest;
+    if (choice == "5") return MenuChoice::radius_search;
+    if (choice == "6") return MenuChoice::import_json;
+    if (choice == "7") return MenuChoice::erase_record;
+    if (choice == "8") return MenuChoice::clear_index;
+    if (choice == "9") return MenuChoice::import_help;
+    if (choice == "10") return MenuChoice::rebuild_index;
     if (choice == "0" || choice == "q" || choice == "quit") return MenuChoice::quit;
 
     return MenuChoice::unknown;
@@ -750,6 +785,9 @@ int main(int argc, char** argv) {
                     break;
                 case MenuChoice::nearest_neighbor:
                     nearest_neighbor(index);
+                    break;
+                case MenuChoice::k_nearest:
+                    k_nearest(index);
                     break;
                 case MenuChoice::radius_search:
                     radius_search(index);

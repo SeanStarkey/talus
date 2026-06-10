@@ -1020,6 +1020,85 @@ void nearest_impl(
     }
 }
 
+template<typename T, typename Scalar>
+struct KNearestCandidate {
+    const T* value = nullptr;
+    Scalar sq_distance = Scalar{};
+};
+
+/// Max-heap order on squared distance, so the heap front is the current
+/// worst (farthest) of the k best candidates and is the one evicted first.
+template<typename T, typename Scalar>
+[[nodiscard]] constexpr bool farther_first(
+    const KNearestCandidate<T, Scalar>& lhs,
+    const KNearestCandidate<T, Scalar>& rhs) noexcept {
+    return lhs.sq_distance < rhs.sq_distance;
+}
+
+template<typename T, typename Scalar>
+[[nodiscard]] Scalar prune_distance(
+    const std::vector<KNearestCandidate<T, Scalar>>& best,
+    std::size_t k) noexcept {
+    return best.size() == k
+        ? best.front().sq_distance
+        : std::numeric_limits<Scalar>::infinity();
+}
+
+template<typename T, typename Scalar, std::size_t MaxChildren>
+void k_nearest_impl(
+    const RTreeNode<T, Scalar, MaxChildren>& node,
+    Point<Scalar> query,
+    std::size_t k,
+    std::vector<KNearestCandidate<T, Scalar>>& best) {
+    if (node.empty() || node.bounds().min_sq_distance(query) > prune_distance(best, k)) {
+        return;
+    }
+
+    if (node.is_leaf()) {
+        for (const auto& entry : node.values()) {
+            const Scalar sq_distance = entry.bounds.min_sq_distance(query);
+            if (best.size() < k) {
+                best.push_back({&entry.value(), sq_distance});
+                std::push_heap(best.begin(), best.end(), farther_first<T, Scalar>);
+            } else if (sq_distance < best.front().sq_distance) {
+                std::pop_heap(best.begin(), best.end(), farther_first<T, Scalar>);
+                best.back() = {&entry.value(), sq_distance};
+                std::push_heap(best.begin(), best.end(), farther_first<T, Scalar>);
+            }
+        }
+        return;
+    }
+
+    struct Candidate {
+        const RTreeNode<T, Scalar, MaxChildren>* child = nullptr;
+        Scalar sq_distance = Scalar{};
+    };
+
+    std::vector<Candidate> candidates;
+    candidates.reserve(node.count());
+    for (const auto& entry : node.children()) {
+        TALUS_ASSERT(entry.child != nullptr);
+        const Scalar sq_distance = entry.bounds.min_sq_distance(query);
+        if (sq_distance <= prune_distance(best, k)) {
+            candidates.push_back({entry.child, sq_distance});
+        }
+    }
+
+    std::sort(candidates.begin(), candidates.end(),
+        [](const Candidate& lhs, const Candidate& rhs) {
+            return lhs.sq_distance < rhs.sq_distance;
+        });
+
+    for (const Candidate& candidate : candidates) {
+        // Recomputed each pass: recursion may have filled the heap or
+        // tightened its worst distance since the candidate list was built.
+        if (candidate.sq_distance > prune_distance(best, k)) {
+            break;
+        }
+        k_nearest_impl(*candidate.child, query, k, best);
+    }
+}
+
 } // namespace nearest_detail
 
 /// @brief Returns the stored value nearest to `query`, or null when the tree is empty.
@@ -1035,6 +1114,42 @@ template<typename T, typename Scalar, std::size_t MaxChildren>
     nearest_detail::NearestState<T, Scalar, MaxChildren> best;
     nearest_detail::nearest_impl(root, query, best);
     return best.value;
+}
+
+/// @brief Returns pointers to the `k` stored values nearest to `query`.
+///
+/// Distance is measured from the query point to each stored entry's bounding
+/// box using squared Euclidean distance, so a point inside a stored box has
+/// distance zero. Results are sorted by ascending distance; the order of
+/// equidistant values is unspecified, as is which equidistant values are kept
+/// when more than `k` entries tie at the k-th distance. Fewer than `k`
+/// pointers are returned when the tree holds fewer than `k` entries.
+/// Traversal visits child boxes in increasing minimum-distance order and
+/// prunes subtrees that cannot beat the current k-th best distance.
+template<typename T, typename Scalar, std::size_t MaxChildren>
+[[nodiscard]] std::vector<const T*> k_nearest_neighbors(
+    const RTreeNode<T, Scalar, MaxChildren>& root,
+    Point<Scalar> query,
+    std::size_t k) {
+    std::vector<const T*> result;
+    if (k == 0) {
+        return result;
+    }
+
+    // Not reserved to `k` up front: the heap only ever holds
+    // min(k, entry count) candidates, and `k` may be huge (e.g. SIZE_MAX
+    // to request "all values by distance").
+    std::vector<nearest_detail::KNearestCandidate<T, Scalar>> best;
+    nearest_detail::k_nearest_impl(root, query, k, best);
+
+    // `best` is a max-heap on squared distance; sort_heap leaves it ascending.
+    std::sort_heap(best.begin(), best.end(), nearest_detail::farther_first<T, Scalar>);
+
+    result.reserve(best.size());
+    for (const auto& candidate : best) {
+        result.push_back(candidate.value);
+    }
+    return result;
 }
 
 namespace bulk_load_detail {

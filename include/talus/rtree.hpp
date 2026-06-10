@@ -313,6 +313,35 @@ public:
         return *nearest;
     }
 
+    /// @brief Returns copies of the `k` values whose bounds are nearest to `query`.
+    ///
+    /// Distance is measured from the query point to each stored value's bounds;
+    /// bounded geometries containing the query point have distance zero. Results
+    /// are sorted by ascending distance. The order of equidistant values is
+    /// unspecified, as is which equidistant values are kept when more than `k`
+    /// entries tie at the k-th distance. Fewer than `k` values are returned when
+    /// the index holds fewer than `k`; `k == 0` returns an empty vector.
+    ///
+    /// @throws invalid_geometry if either query coordinate is NaN or infinite.
+    [[nodiscard]] std::vector<T> nearest_neighbors(Point<Scalar> query, std::size_t k) const
+        requires std::copy_constructible<T> {
+        if (!std::isfinite(query.x) || !std::isfinite(query.y)) {
+            throw invalid_geometry{};
+        }
+
+        std::vector<T> matches;
+        if (root_ == nullptr || k == 0) {
+            return matches;
+        }
+
+        const std::vector<const T*> nearest = detail::k_nearest_neighbors(*root_, query, k);
+        matches.reserve(nearest.size());
+        for (const T* value : nearest) {
+            matches.push_back(*value);
+        }
+        return matches;
+    }
+
 private:
     using node_type = detail::RTreeNode<T, Scalar, MaxChildren>;
     using pool_type = detail::PoolAllocator<node_type>;

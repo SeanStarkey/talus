@@ -1249,6 +1249,81 @@ void test_nearest_neighbor_internal_tree_finds_best_leaf_entry() {
     TALUS_CHECK(*nearest == 50);
 }
 
+// Test: test_k_nearest_empty_root_and_zero_k_return_empty
+// Verifies k-nearest returns no results for an empty tree and for k == 0, and
+// does not try to inspect leaf storage when the root has no entries.
+void test_k_nearest_empty_root_and_zero_k_return_empty() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root;
+
+    TALUS_CHECK(talus::detail::k_nearest_neighbors(root, talus::Point<double>{0.0, 0.0}, 3).empty());
+
+    root.append_value(Box{{1.0, 1.0}, {1.0, 1.0}}, 1);
+    TALUS_CHECK(talus::detail::k_nearest_neighbors(root, talus::Point<double>{0.0, 0.0}, 0).empty());
+}
+
+// Test: test_k_nearest_leaf_returns_ascending_distance_order
+// Verifies k-nearest ranks leaf entries by the minimum squared distance from
+// the query point to each stored bounding box and returns them nearest-first,
+// not in insertion order, truncated to k results.
+void test_k_nearest_leaf_returns_ascending_distance_order() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    Node root;
+    root.append_value(Box{{100.0, 100.0}, {101.0, 101.0}}, 100);
+    root.append_value(Box{{5.0, 5.0}, {7.0, 7.0}}, 5);
+    root.append_value(Box{{20.0, 20.0}, {21.0, 21.0}}, 20);
+
+    const auto nearest =
+        talus::detail::k_nearest_neighbors(root, talus::Point<double>{6.0, 6.0}, 2);
+
+    TALUS_CHECK(nearest.size() == 2);
+    TALUS_CHECK(*nearest[0] == 5);
+    TALUS_CHECK(*nearest[1] == 20);
+}
+
+// Test: test_k_nearest_internal_tree_finds_best_leaf_entries
+// Verifies k-nearest descends through internal nodes of a split-built tree and
+// returns the k closest entries in ascending distance order, and that asking
+// for more results than the tree holds returns every entry.
+void test_k_nearest_internal_tree_finds_best_leaf_entries() {
+    using Node = talus::detail::RTreeNode<int, double, 4>;
+
+    talus::detail::PoolAllocator<Node, 16> pool;
+    Node root;
+
+    const std::vector<int> values{-100, -50, -10, 0, 25, 50, 100, 150, 200};
+    for (int value : values) {
+        auto result = talus::detail::insert_with_split(
+            root,
+            pool,
+            Box{
+                {static_cast<double>(value), 0.0},
+                {static_cast<double>(value), 0.0}
+            },
+            value);
+        TALUS_CHECK(result.inserted);
+    }
+
+    TALUS_CHECK(root.is_internal());
+
+    const auto nearest =
+        talus::detail::k_nearest_neighbors(root, talus::Point<double>{48.0, 3.0}, 3);
+
+    TALUS_CHECK(nearest.size() == 3);
+    TALUS_CHECK(*nearest[0] == 50);
+    TALUS_CHECK(*nearest[1] == 25);
+    TALUS_CHECK(*nearest[2] == 0);
+
+    const auto all =
+        talus::detail::k_nearest_neighbors(root, talus::Point<double>{48.0, 3.0}, 100);
+
+    TALUS_CHECK(all.size() == values.size());
+    TALUS_CHECK(*all.front() == 50);
+    TALUS_CHECK(*all.back() == 200);  // |200 - 48| = 152 > |-100 - 48| = 148
+}
+
 // Test: test_choose_leaf_uses_margin_when_area_is_degenerate
 // Verifies ChooseSubtree picks the spatially nearer leaf among collinear
 // children whose boxes have zero area. Both candidates are horizontal lines
@@ -1552,6 +1627,9 @@ int main() {
     test_nearest_neighbor_empty_root_returns_null();
     test_nearest_neighbor_leaf_uses_entry_bounds();
     test_nearest_neighbor_internal_tree_finds_best_leaf_entry();
+    test_k_nearest_empty_root_and_zero_k_return_empty();
+    test_k_nearest_leaf_returns_ascending_distance_order();
+    test_k_nearest_internal_tree_finds_best_leaf_entries();
     test_bulk_load_group_sizes_borrows_for_min_fill();
     test_str_bulk_load_single_entry_builds_leaf_root();
     test_str_bulk_load_full_leaf_stays_single_level();

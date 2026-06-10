@@ -10,9 +10,9 @@ A zero-dependency, header-only C++20 spatial index library. Drop it in, include 
 
 > **Status: early development (v0.1.0, in progress).** Working today: automatic
 > type detection, `insert`, STR bulk loading with `bulk_load`, rectangle
-> (`within`) queries, radius searches, single nearest-neighbor queries, and
-> deletion with `erase`, validated against a brute-force oracle. k-nearest
-> queries, custom query visitors, and the k-d tree are **planned, not yet
+> (`within`) queries, radius searches, nearest-neighbor and k-nearest queries,
+> and deletion with `erase`, validated against a brute-force oracle. Custom
+> query visitors and the k-d tree are **planned, not yet
 > implemented** — see the [Roadmap](#roadmap).
 > [PLAN.md](PLAN.md) is the source of truth for what is and isn't done.
 
@@ -41,6 +41,9 @@ int main() {
     // Single nearest-neighbor query — returns std::optional<Restaurant>
     auto nearest = index.nearest_neighbor({-104.80, 38.82});
 
+    // k-nearest query — returns std::vector<Restaurant>, nearest first
+    auto top_two = index.nearest_neighbors({-104.80, 38.82}, 2);
+
     // Radius query — returns std::vector<Restaurant>
     auto nearby = index.radius_search({-104.80, 38.82}, 0.03);
 
@@ -61,7 +64,7 @@ int main() {
 | C++20 concepts API | ✓ | ✗ | ✗ | ✗ |
 | Range queries | ✓ | ✓ | ✗ | ✓ |
 | Nearest neighbor | ✓ | ✓ | ✓ | ✗ |
-| k-nearest (k>1) | ◐ | ✓ | ✓ | ✗ |
+| k-nearest (k>1) | ✓ | ✓ | ✓ | ✗ |
 | Radius search | ✓ | ✓ | ✓ | ✗ |
 | Custom query predicates / visitor | ◐ | ✓ | ✗ | ✓ |
 | R*-tree | ✓ | ✓ | ✗ | ✗ |
@@ -73,8 +76,8 @@ int main() {
 
 **Talus column: ✓ available now · ◐ planned ([Roadmap](#roadmap)).** Competitor
 columns describe their released features. Talus ships insert, STR bulk loading,
-range query, radius search, single nearest-neighbor query, and deletion today;
-k-nearest and custom query predicates are near-term roadmap work, while
+range query, radius search, nearest-neighbor and k-nearest queries, and
+deletion today; custom query predicates are near-term roadmap work, while
 N-dimensional support and serialization are longer-range (post-1.0) items.
 *RTree.h* is the widely-vendored single-header R-tree (Guttman-style, e.g.
 `nushoin/RTree`): a plain R-tree with a callback-based rectangle search, removal,
@@ -182,10 +185,14 @@ std::vector<T> radius_search(Point<Scalar> query, Scalar radius) const;
 
 // Single nearest-neighbor query — returns std::optional<T> (requires copy-constructible T)
 std::optional<T> nearest_neighbor(Point<Scalar> query) const;
+
+// k-nearest query — returns std::vector<T> sorted nearest-first
+// (requires copy-constructible T)
+std::vector<T> nearest_neighbors(Point<Scalar> query, std::size_t k) const;
 ```
 
-`insert`, `bulk_load`, `erase`, `search`, `within`, `radius_search`, and
-`nearest_neighbor` validate geometry at the boundary and throw
+`insert`, `bulk_load`, `erase`, `search`, `within`, `radius_search`,
+`nearest_neighbor`, and `nearest_neighbors` validate geometry at the boundary and throw
 `talus::invalid_geometry` (a `std::invalid_argument`) when a coordinate is NaN
 or infinite, a radius is negative, or a box has `min > max`. A rejected
 `insert` leaves the index unchanged, and a rejected `erase` leaves the index
@@ -208,12 +215,16 @@ don't bloat the index's internal nodes. (For very large records, indexing a smal
 key and keeping the payload in a side table is still the most cache-friendly
 pattern.)
 
+`nearest_neighbors` returns the `k` stored values nearest to the query point,
+sorted by ascending distance (measured to each value's bounding box, so a query
+inside a stored box is at distance zero). When fewer than `k` values are stored
+it returns them all; `k == 0` returns an empty vector. The order of equidistant
+values — and which are kept when more than `k` tie at the k-th distance — is
+unspecified.
+
 ### Planned (not yet implemented)
 
 ```cpp
-// k-nearest queries
-std::vector<T> nearest(Point<Scalar> query, std::size_t k) const;
-
 // Allocation-free visitor variants, for hot paths
 template<std::invocable<const T&> Fn>
 void for_each_within(BoundingBox<Scalar> query, Fn&& fn) const;
@@ -268,8 +279,8 @@ ASan+UBSan suite, and runs the tests under Valgrind, on every push and pull requ
 Talus includes a small command-line driver that exercises the currently exposed
 public API. It loads seeded example geometries, can import additional JSON data,
 and lets you list records, run bounding-box searches, run radius searches, find
-the nearest geometry to a query point, erase a geometry by id, clear the index,
-and view the supported import format.
+the nearest geometry (or k nearest geometries) to a query point, erase a
+geometry by id, clear the index, and view the supported import format.
 
 ```bash
 cmake -B build -DTALUS_BUILD_EXAMPLES=ON
@@ -290,7 +301,7 @@ To run it with the sample JSON import file:
 - [x] Geometry primitives (`Point`, `BoundingBox`, `Segment`)
 - [x] C++20 concept-based type detection
 - [x] R*-tree core (insert, range query, radius search, single nearest neighbor, delete)
-- [ ] k-nearest queries
+- [x] k-nearest queries
 - [ ] Custom query predicates / visitor
 - [x] Delete and reinsertion
 - [x] STR bulk loading
