@@ -3,12 +3,14 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <map>
 #include <optional>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -79,6 +81,7 @@ enum class MenuChoice {
     rebuild_index,
     filtered_search,
     extractor_demo,
+    quick_benchmark,
     quit,
     unknown
 };
@@ -666,6 +669,84 @@ void extractor_demo() {
     }
 }
 
+// A taste of the standalone benchmark suite (benchmarks/talus_benchmarks):
+// over a user-chosen number of synthetic random points, times insert-based
+// construction against STR bulk loading, then box-search and nearest-neighbor
+// queries on the bulk-loaded tree. Uses a separate index over a lean point
+// type, so the driver's loaded geometries are untouched.
+void quick_benchmark() {
+    struct BenchPoint {
+        Scalar x = 0;
+        Scalar y = 0;
+    };
+    using BenchIndex = talus::SpatialIndex<BenchPoint>;
+    using BenchClock = std::chrono::steady_clock;
+    constexpr Scalar extent = 1000.0;
+    constexpr std::size_t query_count = 1000;
+
+    const std::size_t count = read_positive_integer("number of random points (e.g. 100000): ");
+
+    std::mt19937_64 rng{20260611};
+    std::uniform_real_distribution<Scalar> coord{0.0, extent};
+    std::vector<BenchPoint> points;
+    points.reserve(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        points.push_back({coord(rng), coord(rng)});
+    }
+
+    const auto ms_since = [](BenchClock::time_point start) {
+        return std::chrono::duration<double, std::milli>(BenchClock::now() - start).count();
+    };
+
+    auto start = BenchClock::now();
+    BenchIndex inserted;
+    for (const BenchPoint& point : points) {
+        inserted.insert(point);
+    }
+    const double insert_ms = ms_since(start);
+
+    start = BenchClock::now();
+    BenchIndex bulk_loaded;
+    bulk_loaded.bulk_load(points);
+    const double bulk_ms = ms_since(start);
+
+    // Query windows cover 0.01% of the area each, matching ~count * 1e-4
+    // points per query; the visitor overload avoids result-vector allocation.
+    const Scalar side = extent / 100.0;
+    std::uniform_real_distribution<Scalar> corner{0.0, extent - side};
+    start = BenchClock::now();
+    std::size_t matches = 0;
+    for (std::size_t i = 0; i < query_count; ++i) {
+        const Point min{corner(rng), corner(rng)};
+        matches += bulk_loaded.search({min, {min.x + side, min.y + side}},
+                                      [](const BenchPoint&) {});
+    }
+    const double search_ms = ms_since(start);
+
+    start = BenchClock::now();
+    std::size_t found = 0;
+    for (std::size_t i = 0; i < query_count; ++i) {
+        if (bulk_loaded.nearest_neighbor({coord(rng), coord(rng)})) {
+            ++found;
+        }
+    }
+    const double nn_ms = ms_since(start);
+
+    std::cout << std::fixed << std::setprecision(2)
+              << "Built from " << count << " random points in [0, " << extent << ")^2:\n"
+              << "  insert (one at a time):     " << insert_ms << " ms\n"
+              << "  bulk_load (STR packing):    " << bulk_ms << " ms\n"
+              << "  " << query_count << " box searches:          " << search_ms
+              << " ms (" << matches << " total matches)\n"
+              << "  " << query_count << " nearest neighbors:     " << nn_ms
+              << " ms (" << found << " found)\n"
+              << std::defaultfloat
+              << "The standalone suite (cmake -B build -DTALUS_BUILD_BENCHMARKS=ON\n"
+              << "-DCMAKE_BUILD_TYPE=Release, then ./build/benchmarks/talus_benchmarks)\n"
+              << "adds repetitions, per-operation timings, and insert-built vs\n"
+              << "bulk-loaded query comparisons.\n";
+}
+
 void radius_search(const Index& index) {
     const Point query = read_query_point();
     if (looks_like_reversed_lat_lon(query)) {
@@ -833,6 +914,7 @@ void print_menu(const Index& index) {
         << "10. Rebuild index (STR bulk load)\n"
         << "11. Filtered search (visitor with category predicate and match cap)\n"
         << "12. Custom coordinate extractor demo (packed-array stations)\n"
+        << "13. Quick micro-benchmark (synthetic points)\n"
         << "0. Quit\n"
         << "Choice: ";
 }
@@ -850,6 +932,7 @@ void print_menu(const Index& index) {
     if (choice == "10") return MenuChoice::rebuild_index;
     if (choice == "11") return MenuChoice::filtered_search;
     if (choice == "12") return MenuChoice::extractor_demo;
+    if (choice == "13") return MenuChoice::quick_benchmark;
     if (choice == "0" || choice == "q" || choice == "quit") return MenuChoice::quit;
 
     return MenuChoice::unknown;
@@ -918,6 +1001,9 @@ int main(int argc, char** argv) {
                     break;
                 case MenuChoice::extractor_demo:
                     extractor_demo();
+                    break;
+                case MenuChoice::quick_benchmark:
+                    quick_benchmark();
                     break;
                 case MenuChoice::quit:
                     running = false;

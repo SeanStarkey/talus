@@ -27,9 +27,11 @@ split-index selection use a margin (half-perimeter) tie-breaker so point and
 axis-aligned data — where bounding boxes have zero area — are still ranked
 spatially instead of collapsing to the entry-count fallback.
 
-The following scaffolding directories currently contain placeholder CMake files:
-
-- `benchmarks/`
+`benchmarks/` contains `talus_benchmarks` (`benchmarks/rtree_benchmarks.cpp`),
+a dependency-free microbenchmark suite (built with `-DTALUS_BUILD_BENCHMARKS=ON`)
+covering insertion, STR bulk loading, rectangular search, and
+nearest-neighbor/k-nearest queries, with query benchmarks run against both
+insert-built and bulk-loaded trees.
 
 `examples/` now includes `talus_driver`, a menu-driven command-line
 program that exercises the current public `SpatialIndex` API with seeded data,
@@ -151,7 +153,10 @@ After correctness is established:
 - Completed: custom coordinate extractors — `CoordExtractor` wired into
   `SpatialIndex` as a fourth template parameter, with oracle tests and a
   driver menu demo.
-- Add benchmarks for insertion, rectangular search, nearest neighbor, and bulk loading.
+- Completed: benchmarks for insertion, rectangular search, nearest neighbor
+  (single and k=10), and bulk loading — dependency-free `talus_benchmarks`
+  target in `benchmarks/rtree_benchmarks.cpp`, plus a quick-benchmark driver
+  menu option.
 
 ### 9. Longer-range / exploratory (post-1.0)
 
@@ -199,6 +204,6 @@ comparison. They are intentionally deferred past the v0.1.x line.
 
 ## Next Concrete Task
 
-Section 7 is complete. Finish section 8: add benchmarks for insertion,
-rectangular search, nearest neighbor, and bulk loading (the `benchmarks/`
-directory is currently a placeholder).
+Sections 1–8 are complete. Next: scale the randomized oracle tests toward the
+documented large stress tests (~1M random points with ~10K random queries, the
+remaining open item in section 6), then begin the k-d tree.

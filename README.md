@@ -13,7 +13,8 @@ A zero-dependency, header-only C++20 spatial index library. Drop it in, include 
 > `insert`, STR bulk loading with `bulk_load`, rectangle
 > (`within`) queries, radius searches, nearest-neighbor and k-nearest queries,
 > visitor-based queries with custom predicates and early termination, and
-> deletion with `erase`, validated against a brute-force oracle. The k-d tree
+> deletion with `erase`, validated against a brute-force oracle, plus a
+> dependency-free microbenchmark suite. The k-d tree
 > is **planned, not yet implemented** — see the [Roadmap](#roadmap).
 > [PLAN.md](PLAN.md) is the source of truth for what is and isn't done.
 
@@ -317,6 +318,27 @@ for t in build-vg/tests/talus_*; do valgrind --error-exitcode=1 --leak-check=ful
 CI (GitHub Actions) builds and tests with GCC and Clang under `-Werror`, runs the
 ASan+UBSan suite, and runs the tests under Valgrind, on every push and pull request.
 
+## Benchmarks
+
+A dependency-free microbenchmark suite (no Google Benchmark — a small
+`steady_clock` harness, like the framework-free tests) times insertion, STR
+bulk loading, rectangular search, and nearest-neighbor / k-nearest queries
+over uniformly distributed random points. Query benchmarks run against both an
+insert-built and a bulk-loaded tree, so the effect of STR packing on query
+speed is visible directly. Build in Release — numbers from unoptimized builds
+are not meaningful:
+
+```bash
+cmake -B build-bench -DCMAKE_BUILD_TYPE=Release -DTALUS_BUILD_BENCHMARKS=ON
+cmake --build build-bench
+./build-bench/benchmarks/talus_benchmarks            # default sizes: 1000 10000 100000
+./build-bench/benchmarks/talus_benchmarks 1000000    # custom dataset sizes
+```
+
+Each measurement repeats 5 times and reports the best and median repetitions,
+total and per operation. Comparative benchmarks against Boost.Geometry and
+nanoflann are a separate roadmap item.
+
 ## Example driver
 
 Talus includes a small command-line driver that exercises the currently exposed
@@ -325,8 +347,9 @@ and lets you list records, run bounding-box searches, run radius searches, find
 the nearest geometry (or k nearest geometries) to a query point, run a
 visitor-based filtered search (category predicate plus an early-stop match
 cap), try the custom coordinate extractor demo (an index over a type whose
-coordinates Talus cannot auto-detect), erase a geometry by id, clear the
-index, and view the supported import format.
+coordinates Talus cannot auto-detect), run a quick micro-benchmark over
+synthetic random points (insert vs STR bulk load, plus query timings), erase a
+geometry by id, clear the index, and view the supported import format.
 
 ```bash
 cmake -B build -DTALUS_BUILD_EXAMPLES=ON
@@ -352,6 +375,7 @@ To run it with the sample JSON import file:
 - [x] Custom coordinate extractors (`CoordExtractor` escape hatch)
 - [x] Delete and reinsertion
 - [x] STR bulk loading
+- [x] Microbenchmarks (insert, search, nearest neighbor, bulk load)
 - [ ] k-d tree
 - [ ] Benchmarks vs Boost.Geometry and nanoflann
 
