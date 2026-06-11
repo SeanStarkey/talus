@@ -9,7 +9,8 @@ A zero-dependency, header-only C++20 spatial index library. Drop it in, include 
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 
 > **Status: early development (v0.1.0, in progress).** Working today: automatic
-> type detection, `insert`, STR bulk loading with `bulk_load`, rectangle
+> type detection, custom coordinate extractors for types Talus cannot detect,
+> `insert`, STR bulk loading with `bulk_load`, rectangle
 > (`within`) queries, radius searches, nearest-neighbor and k-nearest queries,
 > visitor-based queries with custom predicates and early termination, and
 > deletion with `erase`, validated against a brute-force oracle. The k-d tree
@@ -84,7 +85,8 @@ int main() {
 **Talus column: ✓ available now · ◐ planned ([Roadmap](#roadmap)).** Competitor
 columns describe their released features. Talus ships insert, STR bulk loading,
 range query, radius search, nearest-neighbor and k-nearest queries, visitor
-queries with custom predicates, and deletion today; N-dimensional support and
+queries with custom predicates, deletion, and a custom coordinate extractor
+escape hatch for opaque types today; N-dimensional support and
 serialization are longer-range (post-1.0) items.
 *RTree.h* is the widely-vendored single-header R-tree (Guttman-style, e.g.
 `nushoin/RTree`): a plain R-tree with a callback-based rectangle search, removal,
@@ -150,11 +152,32 @@ struct Building {
 talus::SpatialIndex<Building> index;
 ```
 
-**Exotic types — explicit extractor** *(planned, not yet available)*
+**Exotic types — explicit extractor**
 
-A `CoordExtractor` concept exists, but passing a custom extractor to
-`SpatialIndex` is still on the roadmap. Until then, give your type a `.bounds()`
-method (above) to index types that lack `.x/.y` or `.lat/.lon` fields.
+When a type matches none of the patterns above, supply a custom extractor —
+any callable taking `const T&` and returning a `BoundingBox` — as the fourth
+`SpatialIndex` template parameter:
+
+```cpp
+struct PackedStation {
+    std::array<double, 2> position;  // no .x/.y, .lat/.lon, or .bounds()
+    std::string name;
+};
+
+struct PackedStationExtractor {
+    talus::BoundingBox<> operator()(const PackedStation& s) const {
+        return {{s.position[0], s.position[1]}, {s.position[0], s.position[1]}};
+    }
+};
+
+talus::SpatialIndex<PackedStation, double, 9, PackedStationExtractor> index;
+```
+
+Stateful extractors (e.g. one that looks coordinates up in an external table
+keyed by the stored value) are passed to the constructor:
+`SpatialIndex<Id, double, 9, TableExtractor> index{TableExtractor{&table}};`.
+Extraction must be deterministic — `erase` re-extracts bounds from its argument
+and requires them to match the stored bounds exactly.
 
 ---
 
@@ -163,8 +186,13 @@ method (above) to index types that lack `.x/.y` or `.lat/.lon` fields.
 ### Available now
 
 ```cpp
-talus::SpatialIndex<T, Scalar = double, MaxChildren = 9>
-// Move-only: movable (noexcept) but not copyable.
+talus::SpatialIndex<T, Scalar = double, MaxChildren = 9,
+                    Extractor = DefaultExtractor<Scalar>>
+// Move-only: movable but not copyable.
+
+// Construction — the second overload carries a stateful custom extractor
+SpatialIndex();
+explicit SpatialIndex(Extractor extractor);
 
 // Insertion (one value at a time)
 void insert(const T& value);   // requires copy-constructible T
@@ -296,8 +324,9 @@ public API. It loads seeded example geometries, can import additional JSON data,
 and lets you list records, run bounding-box searches, run radius searches, find
 the nearest geometry (or k nearest geometries) to a query point, run a
 visitor-based filtered search (category predicate plus an early-stop match
-cap), erase a geometry by id, clear the index, and view the supported import
-format.
+cap), try the custom coordinate extractor demo (an index over a type whose
+coordinates Talus cannot auto-detect), erase a geometry by id, clear the
+index, and view the supported import format.
 
 ```bash
 cmake -B build -DTALUS_BUILD_EXAMPLES=ON
@@ -320,6 +349,7 @@ To run it with the sample JSON import file:
 - [x] R*-tree core (insert, range query, radius search, single nearest neighbor, delete)
 - [x] k-nearest queries
 - [x] Custom query predicates / visitor
+- [x] Custom coordinate extractors (`CoordExtractor` escape hatch)
 - [x] Delete and reinsertion
 - [x] STR bulk loading
 - [ ] k-d tree

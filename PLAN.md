@@ -35,11 +35,12 @@ The following scaffolding directories currently contain placeholder CMake files:
 program that exercises the current public `SpatialIndex` API with seeded data,
 rectangular search, nearest-neighbor and k-nearest queries, radius search,
 erase-by-id deletion, clearing, size/empty reporting,
-STR bulk-load rebuilds of the loaded records, and
+STR bulk-load rebuilds of the loaded records,
+a custom coordinate extractor demo over a packed-array type, and
 JSON import for mixed point, lat/lon, box, and segment records. The example datasets include Colorado
 14er and ranked Colorado 13er summit coordinates.
 
-The concept layer now supports scalar-aware bounding-box extraction and gives `.bounds()` precedence over point fields when a type satisfies both.
+The concept layer now supports scalar-aware bounding-box extraction and gives `.bounds()` precedence over point fields when a type satisfies both. `SpatialIndex` accepts a custom `CoordExtractor` as its fourth template parameter for types the concepts cannot detect; the default extractor preserves the zero-boilerplate detection path.
 
 All current library headers now include file-level comment headers that describe
 their purpose and ownership boundaries.
@@ -77,7 +78,7 @@ CMake configure, build, and `ctest` pass with the current foundation, pool alloc
 - Completed: add and test pool reserve/preallocation for large builds.
 - Completed: harden pool reserve block-count calculation against size overflow.
 - Completed: harden pool destroy against interior pointers into valid blocks.
-- Completed: adaptive leaf value storage — values larger than `rtree_inline_value_max_size` (128 bytes) are boxed behind a `unique_ptr` so large payloads do not inflate node storage (or, via the leaf/child union, internal nodes); small values stay inline. Access via the entry `value()` accessor.
+- Completed: adaptive leaf value storage — values larger than `rtree_inline_value_max_size` (128 bytes) are boxed behind a `unique_ptr`; small values stay inline.
 - Future (benchmark-gated): expose the inline/boxed threshold (`rtree_inline_value_max_size`, currently fixed at 128 bytes) as a tuning parameter. Prefer a defaulted template parameter threaded `SpatialIndex` → `RTreeNode` → `RTreeValueEntry` so the auto default and existing code stay unchanged; a compile-time macro override is a lighter alternative. Hold until the section-8 benchmarks can show the threshold affects real workloads — don't add the knob before there is evidence to tune against.
 - Keep this layer independent from the higher-level tree algorithms where practical.
 - Preserve a serialization-friendly and large-dataset-friendly design: keep persistent formats pointer-free, keep pool block size tunable, and avoid public APIs that expose node addresses as durable IDs.
@@ -109,36 +110,13 @@ root node and pool, and exposes the user-facing `SpatialIndex<T, Scalar,
 MaxChildren>` API. Implement only after the algorithms in step 4 are correct.
 
 Completed:
-  - `insert`
-  - `size`
-  - `empty`
-  - `clear`
-  - rectangular `search`
-  - `within` alias for the documented rectangular query spelling
-  - `radius_search` for point-to-bounds radius queries
-  - `nearest_neighbor` for point-to-bounds nearest queries, returning
-    `std::optional<T>`
-  - `erase` for deleting one equality-comparable stored value, with internal
-    CondenseTree handling for underfull nodes
-  - `erase` exception safety — basic guarantee for nothrow-move `T`: on
-    allocation failure mid-condense the tree is repaired to a valid state
-    (aborted-split overflow entries are dropped), `size()` is resynchronized
-    via `detail::count_values`, and the index stays fully usable; entries
-    detached for reinsertion may be lost. Verified by allocation-failure
-    injection sweeps in `tests/rtree_exception_tests.cpp` (countdown-failing
-    global `operator new` in a dedicated test binary; self-skips under tools
-    like Valgrind that intercept the global allocator symbols)
-  - move construction / move assignment — the root is pool-allocated (created
-    lazily on first insert) so node storage is address-stable across a move;
-    copying stays deleted
-  - input validation — `insert`/`search`/`within`/`nearest_neighbor` throw
-    `talus::invalid_geometry` (a `std::invalid_argument`) on NaN/infinite
-    coordinates or `min > max`, rather than asserting/terminating; a rejected
-    insert leaves the index unchanged
-
-Keep this phase intentionally narrow. Do not expand the public wrapper to
-delete, radius search, or bulk load until the minimal insert/search/nearest
-API is covered by oracle tests.
+  - `insert`, `size`, `empty`, `clear`
+  - rectangular `search` and the `within` alias
+  - `radius_search` and `nearest_neighbor`
+  - `erase` (with CondenseTree), including basic-guarantee exception safety
+    verified by allocation-failure injection in `tests/rtree_exception_tests.cpp`
+  - move construction / move assignment (copying stays deleted)
+  - input validation via `talus::invalid_geometry`
 
 ### 6. Add the Brute-force Oracle
 
@@ -154,47 +132,12 @@ After Insert, Search, NearestNeighbor, and RadiusSearch are solid, add to `algor
 
 1. Completed: Radius search
 2. Completed: Delete
-3. Completed: STR bulk load — `detail::str_bulk_load` packs leaf entries with
-   Sort-Tile-Recursive tiling (x-center sort, vertical slices, y-center sort
-   per slice) and builds upper levels the same way until a single root remains.
-   All needed nodes are pool-reserved up front. A final-group min-fill
-   redistribution keeps every non-root node at or above `min_children`, so the
-   packed tree upholds the invariants the dynamic insert/erase algorithms rely
-   on. Exposed publicly as `SpatialIndex::bulk_load` (a range overload that
-   copies, plus a `std::vector<T>&&` overload that moves and supports move-only
-   values). The public method requires an empty index (`std::logic_error`
-   otherwise), validates every extracted bounds before touching the tree
-   (`invalid_geometry` leaves the index unchanged), and resets to a valid empty
-   state if the build itself fails. Covered by detail-level structural
-   invariant tests (uniform leaf depth, fill bounds, parent links, bounds
-   unions) and public brute-force-oracle tests, including post-load
-   insert/erase interoperation.
-4. Completed: k-nearest (k>1) queries — `detail::k_nearest_neighbors` reuses
-   the single-nearest traversal shape (children visited in increasing
-   minimum-distance order) with a size-k max-heap of the best candidates;
-   subtrees farther than the current k-th best distance are pruned. Exposed
-   publicly as `SpatialIndex::nearest_neighbors(query, k)`, which validates
-   the query point (`invalid_geometry` on non-finite coordinates) and returns
-   `std::vector<T>` sorted by ascending box distance (`k == 0`, or an empty
-   index, returns empty; `k > size()` returns everything). Tie order at the
-   k-th distance is unspecified. Covered by detail-level tests and tie-free
-   fixture plus randomized brute-force-oracle tests that compare exact
-   ascending-distance ordering.
-5. Completed: Custom query predicates / visitor traversal — the public
-   `QueryVisitor<Visitor, T>` concept (`concepts.hpp`) accepts callables taking
-   `const T&` and returning either void (visit every match) or a type
-   convertible to bool (return false to stop the traversal early; the stopping
-   value is included in the returned count). Exposed as visitor overloads
-   `SpatialIndex::search(bounds, visitor)`, `within(bounds, visitor)`, and
-   `radius_search(query, radius, visitor)`, each returning the number of values
-   visited. Matches are visited by const reference in unspecified order without
-   copying, so visitor queries work with move-only `T` and let callers apply
-   custom predicates or aggregate in place. The detail traversals
-   (`detail::search` / `detail::radius_search`) propagate the early-stop signal
-   through `visit_detail::visit_value`, which normalizes void- and
-   bool-returning visitors. Covered by brute-force-oracle tests (randomized
-   rectangle and radius queries), predicate-filtering, early-stop, move-only,
-   empty-index, and validation-throw tests.
+3. Completed: STR bulk load (`detail::str_bulk_load`, exposed as
+   `SpatialIndex::bulk_load`)
+4. Completed: k-nearest (k>1) queries (`detail::k_nearest_neighbors`, exposed
+   as `SpatialIndex::nearest_neighbors(query, k)`)
+5. Completed: custom query predicates / visitor traversal (the `QueryVisitor`
+   concept plus visitor overloads of `search`/`within`/`radius_search`)
 
 ### 8. Add Examples and Benchmarks
 
@@ -205,7 +148,9 @@ After correctness is established:
 - Completed: add example JSON import data for point, lat/lon, box, and segment
   geometries.
 - Completed: add Colorado 14ers lat/lon sample JSON data for the driver.
-- Add examples for custom coordinate extractors.
+- Completed: custom coordinate extractors — `CoordExtractor` wired into
+  `SpatialIndex` as a fourth template parameter, with oracle tests and a
+  driver menu demo.
 - Add benchmarks for insertion, rectangular search, nearest neighbor, and bulk loading.
 
 ### 9. Longer-range / exploratory (post-1.0)
@@ -254,6 +199,6 @@ comparison. They are intentionally deferred past the v0.1.x line.
 
 ## Next Concrete Task
 
-Section 7 is complete. Continue section 8: add examples for custom coordinate
-extractors, which first requires wiring the `CoordExtractor` concept (defined
-in `concepts.hpp` but not yet used) into `SpatialIndex`.
+Section 7 is complete. Finish section 8: add benchmarks for insertion,
+rectangular search, nearest neighbor, and bulk loading (the `benchmarks/`
+directory is currently a placeholder).

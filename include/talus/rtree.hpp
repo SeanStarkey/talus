@@ -40,11 +40,17 @@ public:
 
 /// @brief R*-tree backed spatial index for automatically indexable values.
 ///
-/// Values are stored by value. Bounds are extracted at insertion time using
-/// `bounding_box_of<Scalar>()`, so structs with `.x/.y`, `.lat/.lon`, or
-/// `.bounds()` are accepted without adapter code.
-template<typename T, typename Scalar = double, std::size_t MaxChildren = 9>
-    requires Indexable<T, Scalar>
+/// Values are stored by value. Bounds are extracted at insertion time by the
+/// `Extractor`. The default extractor delegates to `bounding_box_of<Scalar>()`,
+/// so structs with `.x/.y`, `.lat/.lon`, or `.bounds()` are accepted without
+/// adapter code. Types that match none of those concepts can supply a custom
+/// extractor — any callable satisfying `CoordExtractor<Extractor, T, Scalar>`
+/// — as the fourth template parameter; stateful extractors are passed to the
+/// constructor. Extraction must be deterministic: `erase` re-extracts bounds
+/// from its argument and requires them to equal the stored bounds exactly.
+template<typename T, typename Scalar = double, std::size_t MaxChildren = 9,
+         typename Extractor = DefaultExtractor<Scalar>>
+    requires CoordExtractor<Extractor, T, Scalar>
 class SpatialIndex {
 public:
     /// User value type stored by the index.
@@ -56,11 +62,22 @@ public:
     /// Bounding box type accepted by rectangular queries.
     using bounds_type = BoundingBox<Scalar>;
 
+    /// Callable used to extract bounds from stored values.
+    using extractor_type = Extractor;
+
     /// Maximum node fanout before a split is required.
     static constexpr std::size_t max_children = MaxChildren;
 
-    /// @brief Constructs an empty index.
+    /// @brief Constructs an empty index with a default-constructed extractor.
     SpatialIndex() = default;
+
+    /// @brief Constructs an empty index that extracts bounds with `extractor`.
+    ///
+    /// Use this overload when the extractor carries state, e.g. a pointer to
+    /// an external coordinate table keyed by the stored values.
+    explicit SpatialIndex(Extractor extractor)
+        noexcept(std::is_nothrow_move_constructible_v<Extractor>)
+        : extractor_(std::move(extractor)) {}
 
     /// Copying would require deep-copying the whole tree (and a copyable `T`);
     /// the index is move-only.
@@ -75,8 +92,10 @@ public:
     /// Node storage is owned by the pool and stays address-stable across the
     /// move, so every parent/child pointer (the root included) remains valid.
     /// The moved-from index is left empty and reusable.
-    SpatialIndex(SpatialIndex&& other) noexcept
-        : pool_(std::move(other.pool_)),
+    SpatialIndex(SpatialIndex&& other)
+        noexcept(std::is_nothrow_move_constructible_v<Extractor>)
+        : extractor_(std::move(other.extractor_)),
+          pool_(std::move(other.pool_)),
           root_(other.root_),
           size_(other.size_) {
         other.root_ = nullptr;
@@ -84,8 +103,11 @@ public:
     }
 
     /// @brief Move-assigns, releasing this index's nodes and taking `other`'s.
-    SpatialIndex& operator=(SpatialIndex&& other) noexcept(std::is_nothrow_destructible_v<T>) {
+    SpatialIndex& operator=(SpatialIndex&& other)
+        noexcept(std::is_nothrow_destructible_v<T>
+                 && std::is_nothrow_move_assignable_v<Extractor>) {
         if (this != &other) {
+            extractor_ = std::move(other.extractor_);
             pool_ = std::move(other.pool_);
             root_ = other.root_;
             size_ = other.size_;
@@ -109,7 +131,7 @@ public:
     /// @throws invalid_geometry if the value's extracted bounds are invalid. The
     /// index is unchanged and `value` is not moved from.
     void insert(T&& value) {
-        const bounds_type bounds = bounding_box_of<Scalar>(value);
+        const bounds_type bounds = extractor_(value);
         insert_with_bounds(bounds, std::move(value));
     }
 
@@ -141,7 +163,7 @@ public:
             entries.reserve(std::ranges::size(values));
         }
         for (auto&& value : values) {
-            const bounds_type bounds = bounding_box_of<Scalar>(value);
+            const bounds_type bounds = extractor_(value);
             if (!bounds.is_valid()) {
                 throw invalid_geometry{};
             }
@@ -164,7 +186,7 @@ public:
         std::vector<typename node_type::value_entry_type> entries;
         entries.reserve(values.size());
         for (T& value : values) {
-            const bounds_type bounds = bounding_box_of<Scalar>(value);
+            const bounds_type bounds = extractor_(value);
             if (!bounds.is_valid()) {
                 throw invalid_geometry{};
             }
@@ -211,7 +233,7 @@ public:
     /// @throws invalid_geometry if the value's extracted bounds are invalid.
     bool erase(const T& value)
         requires std::equality_comparable<T> {
-        const bounds_type bounds = bounding_box_of<Scalar>(value);
+        const bounds_type bounds = extractor_(value);
         if (!bounds.is_valid()) {
             throw invalid_geometry{};
         }
@@ -426,7 +448,7 @@ private:
 
     template<typename U>
     void insert_impl(const T& bounds_source, U&& value) {
-        const bounds_type bounds = bounding_box_of<Scalar>(bounds_source);
+        const bounds_type bounds = extractor_(bounds_source);
         insert_with_bounds(bounds, std::forward<U>(value));
     }
 
@@ -452,6 +474,9 @@ private:
         }
     }
 
+    // Declared first so the move constructor's init order matches; usually
+    // stateless, so [[no_unique_address]] keeps it from costing storage.
+    [[no_unique_address]] Extractor extractor_{};
     pool_type pool_{};
     node_type* root_ = nullptr;
     std::size_t size_ = 0;

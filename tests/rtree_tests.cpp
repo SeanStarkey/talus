@@ -46,6 +46,36 @@ struct NamedPoint {
     bool operator==(const NamedPoint&) const = default;
 };
 
+// A record whose coordinates Talus cannot detect automatically: they live in
+// a packed array, so indexing it requires a custom CoordExtractor.
+struct PackedRecord {
+    std::array<double, 2> position{};
+    int id = 0;
+
+    constexpr bool operator==(const PackedRecord&) const noexcept = default;
+};
+
+struct PackedRecordExtractor {
+    [[nodiscard]] Box operator()(const PackedRecord& record) const noexcept {
+        const talus::Point<double> point{record.position[0], record.position[1]};
+        return {point, point};
+    }
+};
+
+static_assert(!talus::Indexable<PackedRecord>);
+static_assert(talus::CoordExtractor<PackedRecordExtractor, PackedRecord>);
+
+// Extractor that resolves coordinates through an external table keyed by the
+// stored value, exercising the stateful SpatialIndex(Extractor) constructor.
+struct TableExtractor {
+    const std::vector<talus::Point<double>>* table = nullptr;
+
+    [[nodiscard]] Box operator()(const int& id) const {
+        const talus::Point<double> point = (*table)[static_cast<std::size_t>(id)];
+        return {point, point};
+    }
+};
+
 template<typename T>
 [[nodiscard]] std::vector<int> sorted_ids(std::vector<T> values) {
     std::vector<int> ids;
@@ -1243,6 +1273,85 @@ void test_spatial_index_visitor_queries_on_empty_index() {
 
 } // namespace
 
+// Test: test_spatial_index_custom_extractor_matches_brute_force
+// Verifies an index over an opaque type (no .x/.y, .lat/.lon, or .bounds())
+// using a custom CoordExtractor produces the same search, radius-search,
+// nearest-neighbor, k-nearest, and erase results as the brute-force oracle
+// equipped with the same extractor, and that bulk_load extracts bounds
+// through the custom extractor as well.
+void test_spatial_index_custom_extractor_matches_brute_force() {
+    talus::SpatialIndex<PackedRecord, double, 4, PackedRecordExtractor> index;
+    talus::test::BruteForceIndex<PackedRecord, double, PackedRecordExtractor> oracle;
+
+    std::mt19937 rng(20260611U);
+    std::uniform_real_distribution<double> coord(-50.0, 50.0);
+
+    std::vector<PackedRecord> records;
+    for (int id = 1; id <= 200; ++id) {
+        const PackedRecord record{{coord(rng), coord(rng)}, id};
+        records.push_back(record);
+        index.insert(record);
+        oracle.insert(record);
+    }
+    TALUS_CHECK(index.size() == oracle.size());
+
+    for (int i = 0; i < 50; ++i) {
+        const talus::Point<double> a{coord(rng), coord(rng)};
+        const talus::Point<double> b{coord(rng), coord(rng)};
+        const Box query{
+            {std::min(a.x, b.x), std::min(a.y, b.y)},
+            {std::max(a.x, b.x), std::max(a.y, b.y)}
+        };
+        assert_same_ids(index.search(query), oracle.search(query));
+        assert_same_ids(index.radius_search(a, 10.0), oracle.radius_search(a, 10.0));
+        assert_same_optional_id(index.nearest_neighbor(a), oracle.nearest_neighbor(a));
+        assert_same_ids(index.nearest_neighbors(a, 5), oracle.nearest_neighbors(a, 5));
+    }
+
+    // Erase resolves bounds through the custom extractor too.
+    for (std::size_t i = 0; i < records.size(); i += 2) {
+        TALUS_CHECK(index.erase(records[i]));
+        TALUS_CHECK(oracle.erase(records[i]));
+    }
+    const Box everything{{-100.0, -100.0}, {100.0, 100.0}};
+    assert_same_ids(index.search(everything), oracle.search(everything));
+
+    talus::SpatialIndex<PackedRecord, double, 4, PackedRecordExtractor> bulk;
+    bulk.bulk_load(records);
+    assert_same_ids(bulk.search(everything), records);
+}
+
+// Test: test_spatial_index_stateful_extractor_resolves_external_table
+// Verifies the SpatialIndex(Extractor) constructor overload: stored values
+// are plain ids whose coordinates live in an external table captured by the
+// extractor, queries and erase resolve through that state, and the extractor
+// state survives a move of the index.
+void test_spatial_index_stateful_extractor_resolves_external_table() {
+    const std::vector<talus::Point<double>> table{
+        {0.0, 0.0}, {10.0, 0.0}, {0.0, 10.0}, {25.0, 25.0}
+    };
+    talus::SpatialIndex<int, double, 4, TableExtractor> index{TableExtractor{&table}};
+
+    for (int id = 0; id < static_cast<int>(table.size()); ++id) {
+        index.insert(id);
+    }
+    TALUS_CHECK(index.size() == table.size());
+
+    const std::vector<int> near_origin = index.search(Box{{-1.0, -1.0}, {1.0, 1.0}});
+    TALUS_CHECK(near_origin == std::vector<int>{0});
+
+    const std::optional<int> nearest = index.nearest_neighbor({24.0, 24.0});
+    TALUS_CHECK(nearest.has_value() && *nearest == 3);
+
+    TALUS_CHECK(index.erase(2));
+    TALUS_CHECK(index.search(Box{{-1.0, 9.0}, {1.0, 11.0}}).empty());
+
+    // Moving the index must carry the extractor state along with the tree.
+    talus::SpatialIndex<int, double, 4, TableExtractor> moved = std::move(index);
+    const std::optional<int> still_nearest = moved.nearest_neighbor({9.0, 1.0});
+    TALUS_CHECK(still_nearest.has_value() && *still_nearest == 1);
+}
+
 int main() {
     test_spatial_index_starts_empty_and_tracks_size();
     test_spatial_index_search_matches_brute_force_fixture();
@@ -1278,5 +1387,7 @@ int main() {
     test_spatial_index_visitor_radius_search_matches_vector();
     test_spatial_index_visitor_search_supports_move_only_values();
     test_spatial_index_visitor_queries_on_empty_index();
+    test_spatial_index_custom_extractor_matches_brute_force();
+    test_spatial_index_stateful_extractor_resolves_external_table();
     return 0;
 }

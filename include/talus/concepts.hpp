@@ -122,4 +122,22 @@ template<typename Scalar = double, typename T>
     };
 }
 
+/// @brief Default coordinate extractor: delegates to `bounding_box_of()`.
+///
+/// This is the extractor `SpatialIndex` uses when none is supplied. It
+/// satisfies `CoordExtractor` for every `Indexable` type, so the
+/// zero-boilerplate `.x/.y`, `.lat/.lon`, and `.bounds()` detection keeps
+/// working unchanged. Types that match none of those concepts need a custom
+/// extractor — any callable taking `const T&` and returning a
+/// `BoundingBox<Scalar>` — passed as the fourth `SpatialIndex` template
+/// parameter.
+template<typename Scalar = double>
+struct DefaultExtractor {
+    template<typename T>
+        requires Indexable<T, Scalar>
+    [[nodiscard]] constexpr BoundingBox<Scalar> operator()(const T& value) const {
+        return bounding_box_of<Scalar>(value);
+    }
+};
+
 } // namespace talus

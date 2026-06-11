@@ -20,13 +20,18 @@
 
 namespace talus::test {
 
-template<typename T, typename Scalar = double>
-    requires Indexable<T, Scalar>
+template<typename T, typename Scalar = double, typename Extractor = DefaultExtractor<Scalar>>
+    requires CoordExtractor<Extractor, T, Scalar>
 class BruteForceIndex {
 public:
     using value_type = T;
     using scalar_type = Scalar;
     using bounds_type = BoundingBox<Scalar>;
+
+    BruteForceIndex() = default;
+
+    explicit BruteForceIndex(Extractor extractor)
+        : extractor_(std::move(extractor)) {}
 
     void insert(const T& value)
         requires std::copy_constructible<T> {
@@ -63,7 +68,7 @@ public:
         requires std::copy_constructible<T> {
         std::vector<T> matches;
         for (const T& value : values_) {
-            if (bounding_box_of<Scalar>(value).intersects(query_bounds)) {
+            if (extractor_(value).intersects(query_bounds)) {
                 matches.push_back(value);
             }
         }
@@ -80,7 +85,7 @@ public:
         const Scalar radius_sq = radius * radius;
         std::vector<T> matches;
         for (const T& value : values_) {
-            if (bounding_box_of<Scalar>(value).min_sq_distance(query) <= radius_sq) {
+            if (extractor_(value).min_sq_distance(query) <= radius_sq) {
                 matches.push_back(value);
             }
         }
@@ -93,7 +98,7 @@ public:
         Scalar best_sq_distance = std::numeric_limits<Scalar>::infinity();
 
         for (const T& value : values_) {
-            const Scalar sq_distance = bounding_box_of<Scalar>(value).min_sq_distance(query);
+            const Scalar sq_distance = extractor_(value).min_sq_distance(query);
             if (sq_distance < best_sq_distance) {
                 nearest = &value;
                 best_sq_distance = sq_distance;
@@ -111,7 +116,7 @@ public:
         std::vector<std::pair<Scalar, const T*>> ranked;
         ranked.reserve(values_.size());
         for (const T& value : values_) {
-            ranked.emplace_back(bounding_box_of<Scalar>(value).min_sq_distance(query), &value);
+            ranked.emplace_back(extractor_(value).min_sq_distance(query), &value);
         }
 
         std::stable_sort(ranked.begin(), ranked.end(),
@@ -129,6 +134,7 @@ public:
     }
 
 private:
+    [[no_unique_address]] Extractor extractor_{};
     std::vector<T> values_{};
 };
 

@@ -1,6 +1,7 @@
 #include <talus/talus.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdlib>
 #include <fstream>
@@ -45,6 +46,26 @@ struct DriverGeometry {
 
 using Index = talus::SpatialIndex<DriverGeometry, Scalar, 9>;
 
+// A record Talus cannot auto-detect: its coordinates live in a packed array,
+// so it satisfies none of HasXY / HasLatLon / HasBounds. Indexing it requires
+// the custom-extractor escape hatch demonstrated by menu option 12.
+struct PackedStation {
+    std::array<Scalar, 2> position{};  // {x, y}
+    std::string name;
+};
+
+struct PackedStationExtractor {
+    [[nodiscard]] Box operator()(const PackedStation& station) const noexcept {
+        const Point point{station.position[0], station.position[1]};
+        return {point, point};
+    }
+};
+
+static_assert(!talus::Indexable<PackedStation>);
+static_assert(talus::CoordExtractor<PackedStationExtractor, PackedStation>);
+
+using PackedIndex = talus::SpatialIndex<PackedStation, Scalar, 9, PackedStationExtractor>;
+
 enum class MenuChoice {
     list_records,
     search,
@@ -57,6 +78,7 @@ enum class MenuChoice {
     import_help,
     rebuild_index,
     filtered_search,
+    extractor_demo,
     quit,
     unknown
 };
@@ -594,6 +616,56 @@ void filtered_search(const Index& index) {
               << ".\n";
 }
 
+// Exercises the custom coordinate extractor escape hatch: PackedStation keeps
+// its coordinates in a std::array, so Talus cannot detect them automatically.
+// A PackedStationExtractor supplied as the fourth SpatialIndex template
+// parameter extracts the bounds instead, and every query works as usual.
+void extractor_demo() {
+    PackedIndex index;
+    const std::vector<PackedStation> stations{
+        {{-105.00, 39.74}, "Union Station"},
+        {{-104.99, 39.75}, "Coors Field"},
+        {{-104.87, 39.75}, "Central Park Station"},
+        {{-105.02, 39.69}, "Decatur-Federal Station"},
+        {{-104.94, 39.71}, "Colorado Station"},
+    };
+    for (const PackedStation& station : stations) {
+        index.insert(station);
+    }
+
+    std::cout << "PackedStation stores coordinates in a std::array, so Talus cannot\n"
+              << "auto-detect them; a custom CoordExtractor indexes it instead:\n";
+    for (const PackedStation& station : stations) {
+        std::cout << "  {" << station.position[0] << ", " << station.position[1]
+                  << "}  " << station.name << "\n";
+    }
+
+    const Point query = read_query_point();
+    if (looks_like_reversed_lat_lon(query)) {
+        std::cout << "Note: that looks like latitude/longitude order. Talus queries use "
+                  << "x/longitude first and y/latitude second; try ("
+                  << query.y << ", " << query.x << ") if this result looks wrong.\n";
+    }
+
+    const std::optional<PackedStation> nearest = index.nearest_neighbor(query);
+    if (nearest) {
+        std::cout << "Nearest station to (" << query.x << ", " << query.y << "): "
+                  << nearest->name << " at {" << nearest->position[0] << ", "
+                  << nearest->position[1] << "}\n";
+    }
+
+    const double radius = read_double("radius: ");
+    if (radius < 0.0) {
+        throw std::runtime_error("radius must be non-negative");
+    }
+    const std::vector<PackedStation> nearby = index.radius_search(query, radius);
+    std::cout << "Stations within radius " << radius << ": " << nearby.size() << "\n";
+    for (const PackedStation& station : nearby) {
+        std::cout << "  {" << station.position[0] << ", " << station.position[1]
+                  << "}  " << station.name << "\n";
+    }
+}
+
 void radius_search(const Index& index) {
     const Point query = read_query_point();
     if (looks_like_reversed_lat_lon(query)) {
@@ -760,6 +832,7 @@ void print_menu(const Index& index) {
         << "9. Show JSON import format\n"
         << "10. Rebuild index (STR bulk load)\n"
         << "11. Filtered search (visitor with category predicate and match cap)\n"
+        << "12. Custom coordinate extractor demo (packed-array stations)\n"
         << "0. Quit\n"
         << "Choice: ";
 }
@@ -776,6 +849,7 @@ void print_menu(const Index& index) {
     if (choice == "9") return MenuChoice::import_help;
     if (choice == "10") return MenuChoice::rebuild_index;
     if (choice == "11") return MenuChoice::filtered_search;
+    if (choice == "12") return MenuChoice::extractor_demo;
     if (choice == "0" || choice == "q" || choice == "quit") return MenuChoice::quit;
 
     return MenuChoice::unknown;
@@ -841,6 +915,9 @@ int main(int argc, char** argv) {
                     break;
                 case MenuChoice::filtered_search:
                     filtered_search(index);
+                    break;
+                case MenuChoice::extractor_demo:
+                    extractor_demo();
                     break;
                 case MenuChoice::quit:
                     running = false;
