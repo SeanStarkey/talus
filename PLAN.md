@@ -158,7 +158,37 @@ After correctness is established:
   target in `benchmarks/rtree_benchmarks.cpp`, plus a quick-benchmark driver
   menu option.
 
-### 9. Longer-range / exploratory (post-1.0)
+### 9. Implement the k-d Tree
+
+The second target structure (pre-1.0). A k-d tree indexes points only, so it
+complements the R*-tree (which also handles boxes) and should be the faster
+choice for static point datasets and nearest-neighbor-heavy workloads.
+
+- Decide the structural design first: static (bulk-built, median-split, array
+  packed — simplest and fastest to query) vs dynamic (insert/erase). Suggested
+  scope for 1.0: build-from-range plus queries; defer dynamic mutation unless
+  it falls out naturally.
+- `include/talus/detail/kdtree_*.hpp` — node layout and build/query
+  algorithms, mirroring the `detail/` split used by the R-tree.
+- Public wrapper (e.g. `KdTree<T, Scalar, Extractor>` in
+  `include/talus/kdtree.hpp`, added to the `talus.hpp` umbrella): build from a
+  range, `size`/`empty`/`clear`, rectangular `search`/`within`,
+  `radius_search`, `nearest_neighbor`, `nearest_neighbors(k)`, visitor
+  overloads — matching the `SpatialIndex` API surface where it makes sense so
+  the two are interchangeable for point data.
+- Reuse the existing concept layer: accept `Pointlike` types and custom
+  `CoordExtractor`s via `bounding_box_of()`; reject or document
+  bounded-geometry types (a k-d tree stores points, not boxes).
+- Tests: diff every query against `BruteForceIndex` (deterministic fixtures,
+  randomized fixtures, degenerate/grid data), plus a scaled stress run like
+  `tests/rtree_stress_tests.cpp`.
+- Benchmarks: add k-d tree build and query benchmarks to
+  `benchmarks/rtree_benchmarks.cpp` (or a sibling file) so the R*-tree and
+  k-d tree can be compared on identical point workloads.
+- Examples/README: driver menu options exercising the k-d tree, README status
+  note, "Why Talus" row, API reference, and roadmap updates.
+
+### 10. Longer-range / exploratory (post-1.0)
 
 These are larger, lower-priority efforts surfaced in the README "Why Talus"
 comparison. They are intentionally deferred past the v0.1.x line.
@@ -205,4 +235,5 @@ comparison. They are intentionally deferred past the v0.1.x line.
 ## Next Concrete Task
 
 Sections 1–8 are complete, including the large stress tests (section 6). Next:
-begin the k-d tree.
+begin the k-d tree (section 9), starting with the static-vs-dynamic design
+decision.
