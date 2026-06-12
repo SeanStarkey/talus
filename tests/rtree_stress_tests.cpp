@@ -8,8 +8,7 @@
 /// the Valgrind CI lane. The documented full-scale run (~1M points, ~10K
 /// queries) is opt-in via environment variables:
 ///
-///   TALUS_STRESS_POINTS=1000000 TALUS_STRESS_QUERIES=10000 \
-///       ./build/tests/talus_rtree_stress_tests
+///   TALUS_STRESS_POINTS=1000000 TALUS_STRESS_QUERIES=10000 ./build/tests/talus_rtree_stress_tests
 
 #include <talus/rtree.hpp>
 
