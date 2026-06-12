@@ -50,7 +50,7 @@ their purpose and ownership boundaries.
 Public structures, concepts, helpers, and storage methods now include
 Doxygen-style comments for generated API documentation.
 
-The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, focused pool allocator and R-tree node storage tests, R-tree algorithm tests, and public `SpatialIndex` oracle tests. Test invariants are checked with a local `TALUS_CHECK` macro (`tests/test_check.hpp`) that always runs and is not stripped by `NDEBUG`, so the suite stays meaningful in `Release` as well as `Debug`.
+The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, focused pool allocator and R-tree node storage tests, R-tree algorithm tests, public `SpatialIndex` oracle tests, and an environment-scalable large randomized stress test (`tests/rtree_stress_tests.cpp`). Test invariants are checked with a local `TALUS_CHECK` macro (`tests/test_check.hpp`) that always runs and is not stripped by `NDEBUG`, so the suite stays meaningful in `Release` as well as `Debug`.
 
 CMake configure, build, and `ctest` pass with the current foundation, pool allocator, node storage, algorithm, and public R-tree test targets.
 
@@ -126,7 +126,7 @@ Completed:
 - Completed: compare public `SpatialIndex` rectangular search results against brute force
   for deterministic fixtures.
 - Completed: add randomized public API search tests after deterministic tests are stable.
-- Scale randomized tests gradually before attempting the documented large stress tests.
+- Completed: large stress test (`tests/rtree_stress_tests.cpp`) diffing insert-built and bulk-loaded indexes against the oracle across mixed search/radius/NN/k-NN/erase workloads; scale via `TALUS_STRESS_POINTS`/`TALUS_STRESS_QUERIES` (ctest default 100K/1K; full 1M/10K verified in Release, ~2 min; Valgrind CI lane runs it scaled down).
 
 ### 7. Implement Remaining R*-tree Algorithms
 
@@ -204,6 +204,5 @@ comparison. They are intentionally deferred past the v0.1.x line.
 
 ## Next Concrete Task
 
-Sections 1–8 are complete. Next: scale the randomized oracle tests toward the
-documented large stress tests (~1M random points with ~10K random queries, the
-remaining open item in section 6), then begin the k-d tree.
+Sections 1–8 are complete, including the large stress tests (section 6). Next:
+begin the k-d tree.

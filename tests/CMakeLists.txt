@@ -8,6 +8,7 @@ set(_talus_tests
     algorithms_tests
     rtree_tests
     rtree_exception_tests
+    rtree_stress_tests
 )
 
 foreach(_test IN LISTS _talus_tests)
