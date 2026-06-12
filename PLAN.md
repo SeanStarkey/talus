@@ -188,7 +188,42 @@ choice for static point datasets and nearest-neighbor-heavy workloads.
 - Examples/README: driver menu options exercising the k-d tree, README status
   note, "Why Talus" row, API reference, and roadmap updates.
 
-### 10. Longer-range / exploratory (post-1.0)
+### 10. 1.0 Release Readiness
+
+Hardening and process work that should gate the 1.0 tag. The packaging
+fundamentals already exist (install/export rules, `talusConfig.cmake` with
+`SameMajorVersion` compatibility, LICENSE, `project(... VERSION ...)`); these
+items close the remaining gaps.
+
+- **Release-mode CI lane.** Every current CI job builds Debug. The suite was
+  designed to stay meaningful under `NDEBUG` (`TALUS_CHECK`), but nothing
+  exercises it; add a gcc/clang `-DCMAKE_BUILD_TYPE=Release` job so
+  optimizer-exposed bugs and `-O2`-only UB get caught.
+- **MSVC/Windows CI, plus a macOS lane.** A header-only C++20 library
+  implicitly claims portability, and MSVC is the compiler most likely to break
+  GCC/Clang-clean template code. macOS coverage is currently informal (local
+  builds only).
+- **Version macros in the headers.** `TALUS_VERSION_MAJOR/MINOR/PATCH` (and a
+  combined value) in `talus.hpp`, kept in sync with the CMake project version,
+  so consumers who vendor the headers or need conditional compilation can see
+  the version.
+- **Release process.** CHANGELOG.md, annotated git tags per release, and a
+  stated semver policy — the package config already promises
+  `SameMajorVersion` compatibility, so the policy should be written down.
+- **Thread-safety documentation.** State the guarantee explicitly in the
+  README and class-level Doxygen comments (expected: concurrent const queries
+  are safe; any mutation requires external synchronization), and audit the
+  code for anything that would silently violate it (e.g. mutable caches).
+- **Install/consumption smoke test in CI.** A tiny downstream project that
+  consumes Talus via `find_package(talus)` against an installed tree (and via
+  FetchContent) and compiles a minimal program, so the install rules cannot
+  bit-rot unnoticed.
+
+Considered and rejected for 1.0: single-header amalgamation (the umbrella
+header suffices), a generated Doxygen site (comments exist; a site can come
+later), and whole-index iteration APIs.
+
+### 11. Longer-range / exploratory (post-1.0)
 
 These are larger, lower-priority efforts surfaced in the README "Why Talus"
 comparison. They are intentionally deferred past the v0.1.x line.
