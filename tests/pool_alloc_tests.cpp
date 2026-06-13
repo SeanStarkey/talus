@@ -442,6 +442,12 @@ void test_throwing_constructor_releases_slot() {
 } // namespace
 
 int main(int argc, char** argv) {
+    // The interior-pointer death test (below, and the subprocess that re-enters
+    // this main) intentionally trips a TALUS_ASSERT. On MSVC Debug that would
+    // pop a modal dialog and hang the headless CI runner, so route CRT
+    // diagnostics to stderr first. No-op off MSVC.
+    talus::test::disable_crt_report_dialogs();
+
     if (argc == 2 && std::string{argv[1]} == "--destroy-interior-pointer") {
         run_destroy_interior_pointer_case();
         return 0;
