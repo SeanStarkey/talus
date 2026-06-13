@@ -112,6 +112,12 @@ struct RTreeChildEntry {
 /// overflow slot beyond `MaxChildren` so insertion can temporarily exceed normal
 /// capacity before split logic runs. Leaf entry relocation, used by removal and
 /// upcoming split code, requires move-constructible value entries.
+#ifdef _MSC_VER
+// C4324: 'structure was padded due to alignment specifier'. The alignas(64)
+// cache-line layout is deliberate, so this warning is expected noise here.
+#pragma warning(push)
+#pragma warning(disable : 4324)
+#endif
 template<typename T, typename Scalar, std::size_t MaxChildren>
 class alignas(64) RTreeNode {
     static_assert(MaxChildren >= 4, "RTreeNode requires MaxChildren >= 4");
@@ -501,6 +507,9 @@ private:
     node_type* parent_ = nullptr;
     EntryStorage storage_{};
 };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 static_assert(alignof(RTreeNode<int>) == 64);
 

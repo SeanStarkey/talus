@@ -19,6 +19,12 @@
 
 #include <stdlib.h>
 
+#ifdef _MSC_VER
+// MSVC has no posix_memalign; aligned allocations use _aligned_malloc and
+// must be released with _aligned_free.
+#include <malloc.h>
+#endif
+
 namespace {
 
 // Countdown failure injection shared by the replacement operators below.
@@ -66,11 +72,29 @@ void disarm() noexcept {
     if (alignment < sizeof(void*)) {
         alignment = sizeof(void*);
     }
-    void* pointer = nullptr;
-    if (::posix_memalign(&pointer, alignment, size == 0 ? alignment : size) != 0) {
+    const std::size_t request = size == 0 ? alignment : size;
+#ifdef _MSC_VER
+    void* pointer = ::_aligned_malloc(request, alignment);
+    if (pointer == nullptr) {
         throw std::bad_alloc{};
     }
+#else
+    void* pointer = nullptr;
+    if (::posix_memalign(&pointer, alignment, request) != 0) {
+        throw std::bad_alloc{};
+    }
+#endif
     return pointer;
+}
+
+// Release memory obtained from checked_aligned_alloc. On MSVC, _aligned_malloc
+// memory must not be passed to std::free.
+void aligned_free(void* pointer) noexcept {
+#ifdef _MSC_VER
+    ::_aligned_free(pointer);
+#else
+    std::free(pointer);
+#endif
 }
 
 } // namespace
@@ -108,19 +132,19 @@ void operator delete[](void* pointer, std::size_t) noexcept {
 }
 
 void operator delete(void* pointer, std::align_val_t) noexcept {
-    std::free(pointer);
+    aligned_free(pointer);
 }
 
 void operator delete[](void* pointer, std::align_val_t) noexcept {
-    std::free(pointer);
+    aligned_free(pointer);
 }
 
 void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept {
-    std::free(pointer);
+    aligned_free(pointer);
 }
 
 void operator delete[](void* pointer, std::size_t, std::align_val_t) noexcept {
-    std::free(pointer);
+    aligned_free(pointer);
 }
 
 namespace {
