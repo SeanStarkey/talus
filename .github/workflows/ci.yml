@@ -7,29 +7,72 @@ on:
 
 jobs:
   build-test:
-    name: ${{ matrix.cc }} (Debug, -Werror)
+    name: ${{ matrix.compiler.name }} (${{ matrix.build_type }}, -Werror)
     runs-on: ubuntu-latest
     env:
-      CC: ${{ matrix.cc }}
-      CXX: ${{ matrix.cxx }}
+      CC: ${{ matrix.compiler.cc }}
+      CXX: ${{ matrix.compiler.cxx }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { cc: gcc,   cxx: g++ }
-          - { cc: clang, cxx: clang++ }
+        compiler:
+          - { name: gcc,   cc: gcc,   cxx: g++ }
+          - { name: clang, cc: clang, cxx: clang++ }
+        build_type: [Debug, Release]
     steps:
       - uses: actions/checkout@v4
       - name: Configure
         run: >
           cmake -B build
-          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DTALUS_WARNINGS_AS_ERRORS=ON
           -DTALUS_BUILD_EXAMPLES=ON
       - name: Build
         run: cmake --build build -j
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  macos:
+    name: macos/AppleClang (${{ matrix.build_type }}, -Werror)
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DTALUS_WARNINGS_AS_ERRORS=ON
+          -DTALUS_BUILD_EXAMPLES=ON
+      - name: Build
+        run: cmake --build build -j
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    name: windows/MSVC (${{ matrix.build_type }}, -WX)
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+    steps:
+      - uses: actions/checkout@v4
+      # The Visual Studio generator is multi-config: CMAKE_BUILD_TYPE is
+      # ignored at configure time, so the build type is selected per-step with
+      # --config / -C instead.
+      - name: Configure
+        run: >
+          cmake -B build
+          -DTALUS_WARNINGS_AS_ERRORS=ON
+          -DTALUS_BUILD_EXAMPLES=ON
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }} -j
+      - name: Test
+        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
 
   sanitizers:
     name: clang (ASan + UBSan)
