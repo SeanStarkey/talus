@@ -41,7 +41,15 @@ constexpr std::size_t default_query_count = 1'000;
 // Reads a positive integer from the environment, falling back when the
 // variable is unset, empty, zero, or not a clean base-10 number.
 [[nodiscard]] std::size_t env_size(const char* name, std::size_t fallback) {
+#ifdef _MSC_VER
+    // std::getenv is standard C++; MSVC's C4996 deprecation nag is spurious here.
+#  pragma warning(push)
+#  pragma warning(disable : 4996)
+#endif
     const char* text = std::getenv(name);
+#ifdef _MSC_VER
+#  pragma warning(pop)
+#endif
     if (text == nullptr || *text == '\0') {
         return fallback;
     }

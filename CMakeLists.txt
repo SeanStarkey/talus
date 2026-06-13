@@ -56,7 +56,12 @@ add_library(talus_dev_options INTERFACE)
 
 if(TALUS_ENABLE_WARNINGS)
     target_compile_options(talus_dev_options INTERFACE
-        $<$<CXX_COMPILER_ID:MSVC>:/W4>
+        # /wd4324: 'structure was padded due to alignment specifier'. Talus's
+        # node and pool types are deliberately cache-line aligned, so this MSVC
+        # warning is categorical noise for our own targets. Public consumers are
+        # unaffected (this is a dev-only target); the public node.hpp suppresses
+        # it locally for downstream /W4 builds.
+        $<$<CXX_COMPILER_ID:MSVC>:/W4;/wd4324>
         $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall;-Wextra;-Wpedantic>
     )
     if(TALUS_WARNINGS_AS_ERRORS)
