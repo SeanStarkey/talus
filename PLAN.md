@@ -54,6 +54,30 @@ The test suite currently includes dependency-free foundation smoke tests for `ge
 
 CMake configure, build, and `ctest` pass with the current foundation, pool allocator, node storage, algorithm, and public R-tree test targets.
 
+## Versioning and Release Sequencing
+
+The R*-tree is feature-complete, so 1.0 ships the R*-tree alone rather than
+waiting on the k-d tree. Version numbers follow semver as promised by the
+package config (`talusConfig.cmake` advertises `SameMajorVersion`
+compatibility): a major bump signals a breaking change to existing consumers,
+not merely a large new feature.
+
+- **1.0** — R*-tree, hardened (section 10). The supported, stable API.
+- **1.1** — k-d tree (section 9). Purely additive: a new `KdTree` class and
+  new headers, no change to the R*-tree / `SpatialIndex` API, so it is a minor
+  bump. Shipping the R*-tree first also lets its API settle before the k-d
+  tree mirrors that surface for interchangeability.
+- **1.x** — serialization (save/load) and lossless `erase` (section 11). Also
+  additive.
+- **2.0** — N-dimensional points and boxes (section 11). The genuine major
+  bump: a foundational rewrite of `geometry.hpp` and `concepts.hpp` that
+  reshapes the public geometry API.
+
+This holds only while the k-d tree slots in without forcing changes to shared
+concepts or existing `SpatialIndex` signatures (the current plan reuses the
+concept layer, so it should). If wiring it in cleanly reopens those APIs, the
+minor-vs-major call for the k-d tree should be revisited.
+
 ## Recommended Work Plan
 
 ### 1. Stabilize Build and Test Scaffolding
@@ -160,7 +184,8 @@ After correctness is established:
 
 ### 9. Implement the k-d Tree
 
-The second target structure (pre-1.0). A k-d tree indexes points only, so it
+The second target structure, now scheduled for **1.1** (post-1.0; see
+Versioning and Release Sequencing). A k-d tree indexes points only, so it
 complements the R*-tree (which also handles boxes) and should be the faster
 choice for static point datasets and nearest-neighbor-heavy workloads.
 
@@ -190,7 +215,9 @@ choice for static point datasets and nearest-neighbor-heavy workloads.
 
 ### 10. 1.0 Release Readiness
 
-Hardening and process work that should gate the 1.0 tag. The packaging
+**This is the current focus** — with the R*-tree feature-complete, the next
+work is hardening to the 1.0 tag rather than starting the k-d tree (section 9,
+deferred to 1.1). Hardening and process work that should gate the 1.0 tag. The packaging
 fundamentals already exist (install/export rules, `talusConfig.cmake` with
 `SameMajorVersion` compatibility, LICENSE, `project(... VERSION ...)`); these
 items close the remaining gaps.
@@ -269,6 +296,9 @@ comparison. They are intentionally deferred past the v0.1.x line.
 
 ## Next Concrete Task
 
-Sections 1–8 are complete, including the large stress tests (section 6). Next:
-begin the k-d tree (section 9), starting with the static-vs-dynamic design
-decision.
+Sections 1–8 are complete, including the large stress tests (section 6). The
+R*-tree is feature-complete, so the next focus is 1.0 release readiness
+(section 10) rather than the k-d tree (section 9), which is deferred to 1.1
+per the Versioning and Release Sequencing plan. First release-readiness step:
+add a Windows/MSVC CI lane (and a macOS lane) so cross-platform portability is
+verified before the 1.0 tag.
