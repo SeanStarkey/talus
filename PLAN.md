@@ -50,7 +50,7 @@ their purpose and ownership boundaries.
 Public structures, concepts, helpers, and storage methods now include
 Doxygen-style comments for generated API documentation.
 
-The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, focused pool allocator and R-tree node storage tests, R-tree algorithm tests, public `SpatialIndex` oracle tests, and an environment-scalable large randomized stress test (`tests/rtree_stress_tests.cpp`). Test invariants are checked with a local `TALUS_CHECK` macro (`tests/test_check.hpp`) that always runs and is not stripped by `NDEBUG`, so the suite stays meaningful in `Release` as well as `Debug`.
+The test suite currently includes dependency-free foundation smoke tests for `geometry.hpp`, `concepts.hpp`, and the `talus.hpp` umbrella include, focused pool allocator and R-tree node storage tests, R-tree algorithm tests, public `SpatialIndex` oracle tests, allocation-failure exception tests, and an environment-scalable large randomized stress test (`tests/rtree_stress_tests.cpp`). Test invariants are checked with a local `TALUS_CHECK` macro (`tests/test_check.hpp`) that always runs and is not stripped by `NDEBUG`, so the suite stays meaningful in `Release` as well as `Debug`.
 
 CMake configure, build, and `ctest` pass with the current foundation, pool allocator, node storage, algorithm, and public R-tree test targets.
 

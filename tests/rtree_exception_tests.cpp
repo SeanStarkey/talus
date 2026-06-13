@@ -320,6 +320,11 @@ void test_erase_allocation_failure_index_remains_usable() {
 } // namespace
 
 int main() {
+    // Allocation-failure injection can trip internal debug assertions while
+    // probing recovery paths. On MSVC Debug, route CRT reports to stderr so CI
+    // fails visibly instead of blocking on an invisible assertion dialog.
+    talus::test::disable_crt_report_dialogs();
+
     if (!injection_available()) {
         std::fprintf(stderr,
             "allocation-failure injection unavailable (global allocator symbols "
