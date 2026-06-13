@@ -139,8 +139,8 @@ Completed:
   - `insert`, `size`, `empty`, `clear`
   - rectangular `search` and the `within` alias
   - `radius_search` and `nearest_neighbor`
-  - `erase` (with CondenseTree), including basic-guarantee exception safety
-    verified by allocation-failure injection in `tests/rtree_exception_tests.cpp`
+  - `erase` (with CondenseTree), including allocation-before-mutation setup and
+    basic-guarantee exception safety verified by `tests/rtree_exception_tests.cpp`
   - move construction / move assignment (copying stays deleted)
   - input validation via `talus::invalid_geometry`
 

@@ -823,10 +823,10 @@ RTreeDeleteResult<RTreeNode<T, Scalar, MaxChildren>> erase(
         return {&root, false, 0, 0};
     }
 
+    std::vector<entry_type> orphaned_entries;
     node_type* node = located.leaf;
     node->remove_at(located.index);
 
-    std::vector<entry_type> orphaned_entries;
     std::size_t condensed_nodes = 0;
     std::size_t reinserted = 0;
 
