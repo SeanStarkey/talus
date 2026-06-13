@@ -42,6 +42,30 @@ inline void disable_crt_report_dialogs() noexcept {
 #endif
 }
 
+/// @brief True on build configs where allocation/iterator-heavy loops are
+/// pathologically slow, so large correctness sweeps should run at reduced scale.
+///
+/// Currently just MSVC Debug, where checked iterators (`_ITERATOR_DEBUG_LEVEL=2`)
+/// slow tight loops by ~50-100x. Everywhere else this is `false` and tests run
+/// at full scale. This is the single switch behind every "scale down on slow
+/// debug" decision in the suite — adjust the per-test sizes at the call sites of
+/// `scaled_workload`, not by sprinkling new `#if` guards.
+#if defined(_MSC_VER) && defined(_DEBUG)
+inline constexpr bool slow_debug_build = true;
+#else
+inline constexpr bool slow_debug_build = false;
+#endif
+
+/// @brief Returns `reduced` on a slow debug build, otherwise `full`.
+///
+/// Lets an expensive sweep shrink its input on slow configs without changing
+/// what it verifies. Keep `reduced` large enough to still cover the behavior
+/// under test (e.g. above `MaxChildren` for R-tree fixtures).
+template<typename T>
+[[nodiscard]] constexpr T scaled_workload(T full, T reduced) noexcept {
+    return slow_debug_build ? reduced : full;
+}
+
 /// @brief Reports a failed check to stderr and aborts with a non-zero exit.
 [[noreturn]] inline void check_failed(const char* file, int line, const char* expr) {
     // Ensure the abort() below exits instead of hanging on an MSVC Debug dialog.

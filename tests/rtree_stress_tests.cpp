@@ -35,8 +35,13 @@ struct PointRecord {
     constexpr bool operator==(const PointRecord&) const noexcept = default;
 };
 
-constexpr std::size_t default_point_count = 100'000;
-constexpr std::size_t default_query_count = 1'000;
+// Full scale on normal builds; reduced on slow debug builds (MSVC Debug), where
+// the O(points x queries) oracle diff would otherwise take many minutes. Either
+// can still be overridden up or down via the environment variables below.
+constexpr std::size_t default_point_count =
+    talus::test::scaled_workload<std::size_t>(100'000, 20'000);
+constexpr std::size_t default_query_count =
+    talus::test::scaled_workload<std::size_t>(1'000, 200);
 
 // Reads a positive integer from the environment, falling back when the
 // variable is unset, empty, zero, or not a clean base-10 number.
