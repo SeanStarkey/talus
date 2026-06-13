@@ -164,10 +164,23 @@ using Index = talus::SpatialIndex<PointRecord, double, 4>;
 constexpr Box everything{{-1.0e9, -1.0e9}, {1.0e9, 1.0e9}};
 
 [[nodiscard]] std::vector<PointRecord> make_fixture_points() {
+    // The allocation-failure sweep below rebuilds and drains this whole fixture
+    // once per induced failure point, so its cost grows ~quadratically with the
+    // point count. On MSVC Debug (checked iterators, _ITERATOR_DEBUG_LEVEL=2)
+    // plus the replaced global allocator, the full 48-point fixture runs for
+    // many minutes. Use a smaller fixture there — still larger than MaxChildren
+    // (4), so node splits, condensing, and forced reinsertion are all exercised.
+#if defined(_MSC_VER) && defined(_DEBUG)
+    constexpr int cluster_count = 3;
+    constexpr int per_cluster = 4;
+#else
+    constexpr int cluster_count = 6;
+    constexpr int per_cluster = 8;
+#endif
     std::vector<PointRecord> points;
     int id = 1;
-    for (int cluster = 0; cluster < 6; ++cluster) {
-        for (int i = 0; i < 8; ++i) {
+    for (int cluster = 0; cluster < cluster_count; ++cluster) {
+        for (int i = 0; i < per_cluster; ++i) {
             points.push_back({
                 cluster * 100.0 + i,
                 cluster * 100.0 + i * 2.0,
