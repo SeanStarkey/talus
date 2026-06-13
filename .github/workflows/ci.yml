@@ -72,6 +72,14 @@ jobs:
       - name: Build
         run: cmake --build build --config ${{ matrix.build_type }} -j
       - name: Test
+        # MSVC Debug enables checked iterators (_ITERATOR_DEBUG_LEVEL=2), which
+        # makes the stress test's O(points x queries) oracle diff run ~50-100x
+        # slower — at full scale it takes many minutes. Scale it down for Debug
+        # (same approach as the Valgrind lane); Release runs at full default
+        # scale, where the empty env vars fall back to the built-in defaults.
+        env:
+          TALUS_STRESS_POINTS: ${{ matrix.build_type == 'Debug' && '20000' || '' }}
+          TALUS_STRESS_QUERIES: ${{ matrix.build_type == 'Debug' && '200' || '' }}
         run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
 
   sanitizers:
