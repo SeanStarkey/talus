@@ -24,13 +24,13 @@
 
 /// @brief Marks a code path that must never be reached at runtime.
 ///
-/// In debug builds the path is left reachable so sanitizers and debuggers can
-/// catch it. In release builds with hardened checks disabled, the compiler hint
-/// allows dead-code elimination without UB. Otherwise std::terminate() is called.
-// Compiler hint that the point is unreachable. Beyond enabling dead-code
-// elimination, it tells the compiler control does not fall through, which
-// suppresses MSVC C4715 ("not all control paths return a value") at the end of
-// functions whose last statement is TALUS_UNREACHABLE().
+/// In debug builds the path fires an assert (for diagnostics) and then
+/// terminates. In release builds with hardened checks disabled it expands to a
+/// compiler hint that enables dead-code elimination without UB. Otherwise
+/// std::terminate() is called.
+
+// Compiler hint that the point is unreachable, used for dead-code elimination
+// on the hardened-checks-disabled path.
 #if defined(__GNUC__) || defined(__clang__)
 #  define TALUS_UNREACHABLE_HINT() __builtin_unreachable()
 #elif defined(_MSC_VER)
@@ -40,13 +40,23 @@
 #endif
 
 #ifndef NDEBUG
-// Keep the path reachable for sanitizers/debuggers (assert fires first), but
-// still emit the no-return hint so MSVC does not warn about falling through.
-#  define TALUS_UNREACHABLE()                       \
-     do {                                           \
-         assert(false && "unreachable");            \
-         TALUS_UNREACHABLE_HINT();                  \
-     } while (false)
+namespace talus::detail {
+/// In debug, an unreachable path fires the assert and then terminates. The
+/// function is [[noreturn]] so MSVC trusts that callers ending in
+/// TALUS_UNREACHABLE() do not fall through (avoiding C4715, "not all control
+/// paths return a value"). A bare assert does not convey that, while appending
+/// a no-return hint instead trips C4702 ("unreachable code") because MSVC's
+/// debug assert is itself no-return — so the attribute plus a locally
+/// suppressed terminate is the combination that satisfies every compiler.
+[[noreturn]] inline void unreachable() {
+    assert(false && "unreachable");
+#ifdef _MSC_VER
+#  pragma warning(suppress : 4702)
+#endif
+    std::terminate();
+}
+} // namespace talus::detail
+#  define TALUS_UNREACHABLE() ::talus::detail::unreachable()
 #elif defined(TALUS_DISABLE_HARDENED_CHECKS)
 #  define TALUS_UNREACHABLE() TALUS_UNREACHABLE_HINT()
 #else
