@@ -165,11 +165,12 @@ constexpr Box everything{{-1.0e9, -1.0e9}, {1.0e9, 1.0e9}};
 
 [[nodiscard]] std::vector<PointRecord> make_fixture_points() {
     // The allocation-failure sweep below rebuilds and drains this whole fixture
-    // once per induced failure point, so its cost grows ~quadratically with the
-    // point count and is many minutes on a slow debug build. Shrink it there to
-    // 12 points — still larger than MaxChildren (4), so node splits, condensing,
-    // and forced reinsertion are all exercised.
-    constexpr int cluster_count = talus::test::scaled_workload(6, 3);
+    // once per induced failure point, and on a slow debug build (MSVC Debug)
+    // checked iterators inflate the per-drain allocation count, so the cost is
+    // many minutes at full scale. Shrink it hard there to 8 points — still
+    // larger than MaxChildren (4), so a node split, condensing, and forced
+    // reinsertion are all still exercised.
+    constexpr int cluster_count = talus::test::scaled_workload(6, 2);
     constexpr int per_cluster = talus::test::scaled_workload(8, 4);
     std::vector<PointRecord> points;
     int id = 1;
