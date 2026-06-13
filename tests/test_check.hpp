@@ -30,10 +30,15 @@ inline void disable_crt_report_dialogs() noexcept {
 #ifdef _MSC_VER
     _set_error_mode(_OUT_TO_STDERR);
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#  ifdef _DEBUG
+    // The _CrtSetReport* routines exist only in Debug builds; in Release CRT
+    // they are no-op macros that would leave `report` unreferenced (C4189). The
+    // assertion dialog only appears in Debug anyway, so this is Debug-only.
     for (int report : {_CRT_WARN, _CRT_ERROR, _CRT_ASSERT}) {
         _CrtSetReportMode(report, _CRTDBG_MODE_FILE);
         _CrtSetReportFile(report, _CRTDBG_FILE_STDERR);
     }
+#  endif
 #endif
 }
 
