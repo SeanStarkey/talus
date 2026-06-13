@@ -113,8 +113,11 @@ struct RTreeChildEntry {
 /// capacity before split logic runs. Leaf entry relocation, used by removal and
 /// upcoming split code, requires move-constructible value entries.
 #ifdef _MSC_VER
-// C4324: 'structure was padded due to alignment specifier'. The alignas(64)
-// cache-line layout is deliberate, so this warning is expected noise here.
+// C4324: 'structure was padded due to alignment specifier'. The alignas(64) on
+// RTreeNode deliberately pads each node out to a full cache line so a node
+// occupies exactly one line and never straddles two — that padding is the
+// intended design, not an accident, so MSVC's warning about it is pure noise
+// here and is suppressed only around this type.
 #pragma warning(push)
 #pragma warning(disable : 4324)
 #endif
