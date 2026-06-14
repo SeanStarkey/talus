@@ -62,8 +62,8 @@ package config (`talusConfig.cmake` advertises `SameMajorVersion`
 compatibility): a major bump signals a breaking change to existing consumers,
 not merely a large new feature.
 
-- **1.0** — R*-tree, hardened (section 10). The supported, stable API.
-- **1.1** — k-d tree (section 9). Purely additive: a new `KdTree` class and
+- **1.0** — R*-tree, hardened (section 9). The supported, stable API.
+- **1.1** — k-d tree (section 10). Purely additive: a new `KdTree` class and
   new headers, no change to the R*-tree / `SpatialIndex` API, so it is a minor
   bump. Shipping the R*-tree first also lets its API settle before the k-d
   tree mirrors that surface for interchangeability.
@@ -182,41 +182,10 @@ After correctness is established:
   target in `benchmarks/rtree_benchmarks.cpp`, plus a quick-benchmark driver
   menu option.
 
-### 9. Implement the k-d Tree
-
-The second target structure, now scheduled for **1.1** (post-1.0; see
-Versioning and Release Sequencing). A k-d tree indexes points only, so it
-complements the R*-tree (which also handles boxes) and should be the faster
-choice for static point datasets and nearest-neighbor-heavy workloads.
-
-- Decide the structural design first: static (bulk-built, median-split, array
-  packed — simplest and fastest to query) vs dynamic (insert/erase). Suggested
-  scope for 1.0: build-from-range plus queries; defer dynamic mutation unless
-  it falls out naturally.
-- `include/talus/detail/kdtree_*.hpp` — node layout and build/query
-  algorithms, mirroring the `detail/` split used by the R-tree.
-- Public wrapper (e.g. `KdTree<T, Scalar, Extractor>` in
-  `include/talus/kdtree.hpp`, added to the `talus.hpp` umbrella): build from a
-  range, `size`/`empty`/`clear`, rectangular `search`/`within`,
-  `radius_search`, `nearest_neighbor`, `nearest_neighbors(k)`, visitor
-  overloads — matching the `SpatialIndex` API surface where it makes sense so
-  the two are interchangeable for point data.
-- Reuse the existing concept layer: accept `Pointlike` types and custom
-  `CoordExtractor`s via `bounding_box_of()`; reject or document
-  bounded-geometry types (a k-d tree stores points, not boxes).
-- Tests: diff every query against `BruteForceIndex` (deterministic fixtures,
-  randomized fixtures, degenerate/grid data), plus a scaled stress run like
-  `tests/rtree_stress_tests.cpp`.
-- Benchmarks: add k-d tree build and query benchmarks to
-  `benchmarks/rtree_benchmarks.cpp` (or a sibling file) so the R*-tree and
-  k-d tree can be compared on identical point workloads.
-- Examples/README: driver menu options exercising the k-d tree, README status
-  note, "Why Talus" row, API reference, and roadmap updates.
-
-### 10. 1.0 Release Readiness
+### 9. 1.0 Release Readiness
 
 **This is the current focus** — with the R*-tree feature-complete, the next
-work is hardening to the 1.0 tag rather than starting the k-d tree (section 9,
+work is hardening to the 1.0 tag rather than starting the k-d tree (section 10,
 deferred to 1.1). Hardening and process work that should gate the 1.0 tag. The packaging
 fundamentals already exist (install/export rules, `talusConfig.cmake` with
 `SameMajorVersion` compatibility, LICENSE, `project(... VERSION ...)`); these
@@ -254,6 +223,37 @@ docs, and an install/consumption smoke test.
 Considered and rejected for 1.0: single-header amalgamation (the umbrella
 header suffices), a generated Doxygen site (comments exist; a site can come
 later), and whole-index iteration APIs.
+
+### 10. Implement the k-d Tree
+
+The second target structure, now scheduled for **1.1** (post-1.0; see
+Versioning and Release Sequencing). A k-d tree indexes points only, so it
+complements the R*-tree (which also handles boxes) and should be the faster
+choice for static point datasets and nearest-neighbor-heavy workloads.
+
+- Decide the structural design first: static (bulk-built, median-split, array
+  packed — simplest and fastest to query) vs dynamic (insert/erase). Suggested
+  scope for 1.1: build-from-range plus queries; defer dynamic mutation unless
+  it falls out naturally.
+- `include/talus/detail/kdtree_*.hpp` — node layout and build/query
+  algorithms, mirroring the `detail/` split used by the R-tree.
+- Public wrapper (e.g. `KdTree<T, Scalar, Extractor>` in
+  `include/talus/kdtree.hpp`, added to the `talus.hpp` umbrella): build from a
+  range, `size`/`empty`/`clear`, rectangular `search`/`within`,
+  `radius_search`, `nearest_neighbor`, `nearest_neighbors(k)`, visitor
+  overloads — matching the `SpatialIndex` API surface where it makes sense so
+  the two are interchangeable for point data.
+- Reuse the existing concept layer: accept `Pointlike` types and custom
+  `CoordExtractor`s via `bounding_box_of()`; reject or document
+  bounded-geometry types (a k-d tree stores points, not boxes).
+- Tests: diff every query against `BruteForceIndex` (deterministic fixtures,
+  randomized fixtures, degenerate/grid data), plus a scaled stress run like
+  `tests/rtree_stress_tests.cpp`.
+- Benchmarks: add k-d tree build and query benchmarks to
+  `benchmarks/rtree_benchmarks.cpp` (or a sibling file) so the R*-tree and
+  k-d tree can be compared on identical point workloads.
+- Examples/README: driver menu options exercising the k-d tree, README status
+  note, "Why Talus" row, API reference, and roadmap updates.
 
 ### 11. Longer-range / exploratory (post-1.0)
 
@@ -303,7 +303,7 @@ comparison. They are intentionally deferred past the v0.1.x line.
 
 Sections 1–8 are complete, including the large stress tests (section 6). The
 R*-tree is feature-complete, so the next focus is 1.0 release readiness
-(section 10) rather than the k-d tree (section 9), which is deferred to 1.1
+(section 9) rather than the k-d tree (section 10), which is deferred to 1.1
 per the Versioning and Release Sequencing plan. The cross-platform CI lanes
 (Windows/MSVC, macOS) and the Release-mode lane are now done and green. Next
 release-readiness step: version macros in `talus.hpp`
