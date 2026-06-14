@@ -220,16 +220,12 @@ work is hardening to the 1.0 tag rather than starting the k-d tree (section 9,
 deferred to 1.1). Hardening and process work that should gate the 1.0 tag. The packaging
 fundamentals already exist (install/export rules, `talusConfig.cmake` with
 `SameMajorVersion` compatibility, LICENSE, `project(... VERSION ...)`); these
-items close the remaining gaps.
+items close the remaining gaps. The cross-platform and Release CI lanes are now
+in place; the remaining gaps are version macros, release process, thread-safety
+docs, and an install/consumption smoke test.
 
-- **Release-mode CI lane.** Every current CI job builds Debug. The suite was
-  designed to stay meaningful under `NDEBUG` (`TALUS_CHECK`), but nothing
-  exercises it; add a gcc/clang `-DCMAKE_BUILD_TYPE=Release` job so
-  optimizer-exposed bugs and `-O2`-only UB get caught.
-- **MSVC/Windows CI, plus a macOS lane.** A header-only C++20 library
-  implicitly claims portability, and MSVC is the compiler most likely to break
-  GCC/Clang-clean template code. macOS coverage is currently informal (local
-  builds only).
+- **Release-mode CI lane.** Completed: gcc/clang build both Debug and Release in `.github/workflows/ci.yml`.
+- **MSVC/Windows + macOS CI.** Completed: `windows/MSVC` and `macos/AppleClang` lanes (Debug + Release, warnings-as-errors) in `.github/workflows/ci.yml`, all green.
 - **Version macros in the headers.** `TALUS_VERSION_MAJOR/MINOR/PATCH` (and a
   combined value) in `talus.hpp`, kept in sync with the CMake project version,
   so consumers who vendor the headers or need conditional compilation can see
@@ -299,6 +295,7 @@ comparison. They are intentionally deferred past the v0.1.x line.
 Sections 1–8 are complete, including the large stress tests (section 6). The
 R*-tree is feature-complete, so the next focus is 1.0 release readiness
 (section 10) rather than the k-d tree (section 9), which is deferred to 1.1
-per the Versioning and Release Sequencing plan. First release-readiness step:
-add a Windows/MSVC CI lane (and a macOS lane) so cross-platform portability is
-verified before the 1.0 tag.
+per the Versioning and Release Sequencing plan. The cross-platform CI lanes
+(Windows/MSVC, macOS) and the Release-mode lane are now done and green. Next
+release-readiness step: version macros in `talus.hpp`
+(`TALUS_VERSION_MAJOR/MINOR/PATCH`) kept in sync with the CMake project version.

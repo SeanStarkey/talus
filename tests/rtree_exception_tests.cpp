@@ -190,11 +190,10 @@ constexpr Box everything{{-1.0e9, -1.0e9}, {1.0e9, 1.0e9}};
 // Test: test_erase_allocation_failure_keeps_index_consistent
 // Sweeps an allocation-failure countdown across every allocation point hit
 // while draining an index through repeated erases, and verifies the documented
-// basic guarantee on each induced std::bad_alloc: size() exactly matches the
-// entries still reachable by search, surviving entries are a duplicate-free
-// subset of the values not successfully erased, and the index keeps answering
-// queries. On MSVC Debug, STL iterator bookkeeping can allocate before the
-// first tree mutation, so the in-flight target may still be present.
+// basic guarantee on each induced std::bad_alloc: the in-flight target is
+// gone (it is detached before the first allocation), size() exactly matches
+// the entries still reachable by search, surviving entries are a duplicate-free
+// subset of the values not yet erased, and the index keeps answering queries.
 // The sweep ends at the first countdown large enough that a full drain
 // completes without the injector firing, proving all failure points were hit.
 void test_erase_allocation_failure_keeps_index_consistent() {
@@ -221,6 +220,19 @@ void test_erase_allocation_failure_keeps_index_consistent() {
             threw = true;
         }
         disarm();
+
+        if (threw) {
+            // The in-flight target is detached before erase's first possible
+            // allocation, so it is gone even though the call threw. Mark it
+            // erased so the survivor checks below confirm it is absent — this
+            // verifies erase removes the target before it can fail.
+            for (std::size_t i = 0; i < points.size(); ++i) {
+                if (!erased[i]) {
+                    erased[i] = true;
+                    break;
+                }
+            }
+        }
 
         const std::vector<PointRecord> survivors = index.search(everything);
         TALUS_CHECK(index.size() == survivors.size());
