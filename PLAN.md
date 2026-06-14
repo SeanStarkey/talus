@@ -193,8 +193,8 @@ items close the remaining gaps. The cross-platform and Release CI lanes are now
 in place; the remaining gaps are version macros, release process, thread-safety
 docs, and an install/consumption smoke test.
 
-- **Release-mode CI lane.** Completed: gcc/clang build both Debug and Release in `.github/workflows/ci.yml`.
-- **MSVC/Windows + macOS CI.** Completed: `windows/MSVC` and `macos/AppleClang` lanes (Debug + Release, warnings-as-errors) in `.github/workflows/ci.yml`, all green.
+- Completed: add a Release-mode CI lane — gcc/clang build both Debug and Release in `.github/workflows/ci.yml`.
+- Completed: add Windows/MSVC and macOS CI lanes — `windows/MSVC` and `macos/AppleClang` (Debug + Release, warnings-as-errors) in `.github/workflows/ci.yml`, all green.
 - **Pin minimum compiler versions in CI.** The lanes run on `*-latest`
   runners, so they verify only *current* GCC/Clang/MSVC/Apple Clang — but the
   README advertises minimums (GCC 12+, Clang 15+, MSVC 2022, Apple Clang 15+).
