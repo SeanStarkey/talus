@@ -2,9 +2,10 @@
 
 **Solid footing for fast geospatial queries.**
 
-A zero-dependency, header-only C++20 spatial index library. Drop it in, include one header, and start querying — no adapter traits, no build system integration, no Boost required.
+A zero-dependency, header-only C++20 spatial index library. Drop it in, include one header, and start querying — no adapter traits, no build system integration, no Boost required. Continuously tested on Linux, macOS, and Windows (GCC, Clang, and MSVC).
 
 [![CI](https://github.com/SeanStarkey/talus/actions/workflows/ci.yml/badge.svg)](https://github.com/SeanStarkey/talus/actions/workflows/ci.yml)
+[![Platforms: Linux | macOS | Windows](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)](https://github.com/SeanStarkey/talus/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 
@@ -315,8 +316,11 @@ cmake --build build-vg
 for t in build-vg/tests/talus_*; do valgrind --error-exitcode=1 --leak-check=full "$t"; done
 ```
 
-CI (GitHub Actions) builds and tests with GCC and Clang under `-Werror`, runs the
-ASan+UBSan suite, and runs the tests under Valgrind, on every push and pull request.
+CI (GitHub Actions) builds and tests on every push and pull request across
+**Linux** (GCC and Clang), **macOS** (Apple Clang), and **Windows** (MSVC) —
+each in both Debug and Release with warnings treated as errors (`-Werror` /
+`/WX`) — and additionally runs the ASan+UBSan suite and the tests under Valgrind
+(Memcheck) on Linux.
 
 ## Benchmarks
 
