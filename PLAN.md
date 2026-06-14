@@ -226,6 +226,15 @@ docs, and an install/consumption smoke test.
 
 - **Release-mode CI lane.** Completed: gcc/clang build both Debug and Release in `.github/workflows/ci.yml`.
 - **MSVC/Windows + macOS CI.** Completed: `windows/MSVC` and `macos/AppleClang` lanes (Debug + Release, warnings-as-errors) in `.github/workflows/ci.yml`, all green.
+- **Pin minimum compiler versions in CI.** The lanes run on `*-latest`
+  runners, so they verify only *current* GCC/Clang/MSVC/Apple Clang — but the
+  README advertises minimums (GCC 12+, Clang 15+, MSVC 2022, Apple Clang 15+).
+  Add jobs that build/test against those floor versions (e.g. pinned
+  `ubuntu`/container images or `apt`-installed `g++-12`/`clang-15`, an explicit
+  Xcode/Apple-Clang version on macOS, a fixed VS toolset on Windows) so the
+  documented baseline is proven, not asserted. Until then, either keep the
+  README wording as "current" compilers or treat the stated minimums as
+  aspirational.
 - **Version macros in the headers.** `TALUS_VERSION_MAJOR/MINOR/PATCH` (and a
   combined value) in `talus.hpp`, kept in sync with the CMake project version,
   so consumers who vendor the headers or need conditional compilation can see
