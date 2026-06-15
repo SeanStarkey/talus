@@ -2,6 +2,7 @@
 
 #include "test_check.hpp"
 #include <cmath>
+#include <string_view>
 
 namespace {
 
@@ -73,6 +74,17 @@ static_assert(talus::HasBoundsAny<BoundedFloatObject>);  // bounds() → Boundin
 static_assert(talus::HasBoundsAny<PointWithBounds>);     // has both .x/.y and .bounds()
 static_assert(!talus::HasBoundsAny<XYPoint>);            // no .bounds()
 static_assert(!talus::HasBoundsAny<LatLonPoint>);        // no .bounds()
+
+// Test: test_version_macros
+// Verifies the public version macros are available from the umbrella header and
+// that the combined integer macro follows Talus's documented encoding.
+void test_version_macros() {
+    static_assert(TALUS_VERSION_MAJOR == 0);
+    static_assert(TALUS_VERSION_MINOR == 1);
+    static_assert(TALUS_VERSION_PATCH == 0);
+    static_assert(TALUS_VERSION == TALUS_VERSION_MAJOR * 10000 + TALUS_VERSION_MINOR * 100 + TALUS_VERSION_PATCH);
+    static_assert(std::string_view{TALUS_VERSION_STRING} == "0.1.0");
+}
 
 // Test: test_geometry
 // Verifies core geometry primitives, bounding-box operations, and constexpr behavior.
@@ -272,6 +284,7 @@ void test_concepts() {
 } // namespace
 
 int main() {
+    test_version_macros();
     test_geometry();
     test_concepts();
 }

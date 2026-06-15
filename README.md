@@ -15,7 +15,10 @@ A zero-dependency, header-only C++20 spatial index library. Drop it in, include 
 > (`within`) queries, radius searches, nearest-neighbor and k-nearest queries,
 > visitor-based queries with custom predicates and early termination, and
 > deletion with `erase`, validated against a brute-force oracle, plus a
-> dependency-free microbenchmark suite. The k-d tree
+> dependency-free microbenchmark suite. The umbrella header also exposes
+> `TALUS_VERSION_MAJOR/MINOR/PATCH`, `TALUS_VERSION`, and
+> `TALUS_VERSION_STRING` for vendored-header and conditional-compilation use.
+> The k-d tree
 > is **planned, not yet implemented** — see the [Roadmap](#roadmap).
 > [PLAN.md](PLAN.md) is the source of truth for what is and isn't done.
 
@@ -79,6 +82,7 @@ int main() {
 | Custom query predicates / visitor | ✓ | ✓ | ✗ | ✓ |
 | R*-tree | ✓ | ✓ | ✗ | ✗ |
 | k-d tree | ◐ | ✗ | ✓ | ✗ |
+| Header version macro | ✓ | ✓ | ✓ | ✗ |
 | Delete / removal | ✓ | ✓ | ✗ | ✓ |
 | Bulk loading | ✓ | ✓ | ✓ | ✗ |
 | N-dimensional (>2D) | ◐ | ✓ | ✓ | ✓ |
@@ -88,8 +92,8 @@ int main() {
 columns describe their released features. Talus ships insert, STR bulk loading,
 range query, radius search, nearest-neighbor and k-nearest queries, visitor
 queries with custom predicates, deletion, and a custom coordinate extractor
-escape hatch for opaque types today; N-dimensional support and
-serialization are longer-range (post-1.0) items.
+escape hatch for opaque types, plus header version macros today; N-dimensional
+support and serialization are longer-range (post-1.0) items.
 *RTree.h* is the widely-vendored single-header R-tree (Guttman-style, e.g.
 `nushoin/RTree`): a plain R-tree with a callback-based rectangle search, removal,
 and save/load, configured through raw template parameters and min/max arrays
@@ -188,6 +192,13 @@ and requires them to match the stored bounds exactly.
 ### Available now
 
 ```cpp
+// Version macros from <talus/talus.hpp>
+#define TALUS_VERSION_MAJOR 0
+#define TALUS_VERSION_MINOR 1
+#define TALUS_VERSION_PATCH 0
+#define TALUS_VERSION 100  // major * 10000 + minor * 100 + patch
+#define TALUS_VERSION_STRING "0.1.0"
+
 talus::SpatialIndex<T, Scalar = double, MaxChildren = 9,
                     Extractor = DefaultExtractor<Scalar>>
 // Move-only: movable but not copyable.
@@ -380,6 +391,7 @@ To run it with the sample JSON import file:
 - [x] Delete and reinsertion
 - [x] STR bulk loading
 - [x] Microbenchmarks (insert, search, nearest neighbor, bulk load)
+- [x] Header version macros
 - [ ] k-d tree
 - [ ] Benchmarks vs Boost.Geometry and nanoflann
 

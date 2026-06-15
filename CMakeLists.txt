@@ -1,6 +1,59 @@
 cmake_minimum_required(VERSION 3.20)
 project(talus VERSION 0.1.0 LANGUAGES CXX)
 
+# Keep the public vendorable header version macros synchronized with the CMake
+# package version used by installed `talusConfigVersion.cmake`.
+set(_talus_version_header "${CMAKE_CURRENT_SOURCE_DIR}/include/talus/talus.hpp")
+file(READ "${_talus_version_header}" _talus_version_header_contents)
+
+function(_talus_read_version_macro macro_name out_var)
+    string(REGEX MATCH "#[ \t]*define[ \t]+${macro_name}[ \t]+([0-9]+)"
+        _talus_macro_match "${_talus_version_header_contents}"
+    )
+    if(NOT _talus_macro_match)
+        message(FATAL_ERROR "Could not find ${macro_name} in ${_talus_version_header}")
+    endif()
+    set(${out_var} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+endfunction()
+
+function(_talus_read_version_string out_var)
+    string(REGEX MATCH "#[ \t]*define[ \t]+TALUS_VERSION_STRING[ \t]+\"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+        _talus_string_match "${_talus_version_header_contents}"
+    )
+    if(NOT _talus_string_match)
+        message(FATAL_ERROR "Could not find TALUS_VERSION_STRING in ${_talus_version_header}")
+    endif()
+    set(${out_var} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+endfunction()
+
+_talus_read_version_macro(TALUS_VERSION_MAJOR _talus_header_version_major)
+_talus_read_version_macro(TALUS_VERSION_MINOR _talus_header_version_minor)
+_talus_read_version_macro(TALUS_VERSION_PATCH _talus_header_version_patch)
+_talus_read_version_string(_talus_header_version_string)
+
+if(NOT _talus_header_version_major EQUAL PROJECT_VERSION_MAJOR OR
+   NOT _talus_header_version_minor EQUAL PROJECT_VERSION_MINOR OR
+   NOT _talus_header_version_patch EQUAL PROJECT_VERSION_PATCH OR
+   NOT _talus_header_version_string STREQUAL PROJECT_VERSION)
+    message(FATAL_ERROR
+        "Talus header version macros "
+        "${_talus_header_version_major}.${_talus_header_version_minor}.${_talus_header_version_patch} "
+        "(${_talus_header_version_string}) "
+        "do not match CMake project version ${PROJECT_VERSION}"
+    )
+endif()
+
+_talus_read_version_macro(TALUS_VERSION _talus_header_version)
+math(EXPR _talus_expected_combined_version
+    "${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}"
+)
+if(NOT _talus_header_version EQUAL _talus_expected_combined_version)
+    message(FATAL_ERROR
+        "TALUS_VERSION=${_talus_header_version} does not match expected combined "
+        "version ${_talus_expected_combined_version}"
+    )
+endif()
+
 # ── Options ──────────────────────────────────────────────────────────────────
 
 # When consumed as a subdirectory or via FetchContent, tests/benchmarks/examples
