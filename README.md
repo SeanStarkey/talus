@@ -81,10 +81,10 @@ int main() {
 | Radius search | ✓ | ✓ | ✓ | ✗ |
 | Custom query predicates / visitor | ✓ | ✓ | ✗ | ✓ |
 | R*-tree | ✓ | ✓ | ✗ | ✗ |
-| k-d tree | ◐ | ✗ | ✓ | ✗ |
 | Header version macro | ✓ | ✓ | ✓ | ✗ |
 | Delete / removal | ✓ | ✓ | ✗ | ✓ |
 | Bulk loading | ✓ | ✓ | ✓ | ✗ |
+| k-d tree | ◐ | ✗ | ✓ | ✗ |
 | N-dimensional (>2D) | ◐ | ✓ | ✓ | ✓ |
 | Serialization | ◐ | ✓ | ✓ | ✓ |
 
