@@ -121,6 +121,18 @@ FetchContent_MakeAvailable(talus)
 target_link_libraries(my_project PRIVATE talus::talus)
 ```
 
+Talus's CI includes a downstream smoke test for this path.
+
+### Installed package
+
+```cmake
+find_package(talus CONFIG REQUIRED)
+target_link_libraries(my_project PRIVATE talus::talus)
+```
+
+The installed package exports the same `talus::talus` target and is checked in
+CI by configuring a tiny downstream project against an installed prefix.
+
 ### Subdirectory
 
 ```cmake
@@ -377,7 +389,8 @@ CI (GitHub Actions) builds and tests on every push and pull request across
 each in both Debug and Release with warnings treated as errors (`-Werror` /
 `/WX`). Dedicated baseline lanes also prove the advertised minimum compiler
 floor: GCC 12, Clang 15, Apple Clang 15, and MSVC 2022. CI additionally runs the
-ASan+UBSan suite and the tests under Valgrind (Memcheck) on Linux.
+ASan+UBSan suite, the tests under Valgrind (Memcheck) on Linux, and downstream
+consumption smoke tests through both `find_package(talus)` and `FetchContent`.
 
 ## Benchmarks
 
@@ -440,7 +453,7 @@ To run it with the sample JSON import file:
 - [x] Header version macros
 - [x] Release process and semantic versioning policy
 - [x] Thread-safety guarantees
-- [ ] Install/consumption smoke tests
+- [x] Install/consumption smoke tests
 - [ ] k-d tree
 - [ ] Benchmarks vs Boost.Geometry and nanoflann
 

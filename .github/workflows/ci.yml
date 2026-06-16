@@ -234,3 +234,39 @@ jobs:
             echo "::endgroup::"
           done
           exit $status
+
+  consumption:
+    name: install and FetchContent consumption
+    runs-on: ubuntu-latest
+    env:
+      CC: gcc
+      CXX: g++
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure package
+        run: >
+          cmake -B build-package
+          -DCMAKE_BUILD_TYPE=Release
+          -DTALUS_BUILD_TESTS=OFF
+          -DTALUS_BUILD_EXAMPLES=OFF
+      - name: Install package
+        run: cmake --install build-package --prefix "$PWD/build-package/install"
+      - name: Configure installed-package consumer
+        run: >
+          cmake -S tests/consumer_smoke -B build-consumer-installed
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH="$PWD/build-package/install"
+      - name: Build installed-package consumer
+        run: cmake --build build-consumer-installed -j
+      - name: Test installed-package consumer
+        run: ctest --test-dir build-consumer-installed --output-on-failure
+      - name: Configure FetchContent consumer
+        run: >
+          cmake -S tests/consumer_smoke -B build-consumer-fetchcontent
+          -DCMAKE_BUILD_TYPE=Release
+          -DTALUS_CONSUMER_USE_FETCHCONTENT=ON
+          -DTALUS_FETCHCONTENT_SOURCE_DIR="$PWD"
+      - name: Build FetchContent consumer
+        run: cmake --build build-consumer-fetchcontent -j
+      - name: Test FetchContent consumer
+        run: ctest --test-dir build-consumer-fetchcontent --output-on-failure

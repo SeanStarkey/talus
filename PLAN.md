@@ -184,26 +184,20 @@ After correctness is established:
 
 ### 9. 1.0 Release Readiness
 
-**This is the current focus** — with the R*-tree feature-complete, the next
-work is hardening to the 1.0 tag rather than starting the k-d tree (section 10,
-deferred to 1.1). Hardening and process work that should gate the 1.0 tag. The packaging
+Complete. With the R*-tree feature-complete, this section captures the hardening
+and process work that should gate the 1.0 tag before starting the k-d tree
+(section 10, deferred to 1.1). The packaging
 fundamentals already exist (install/export rules, `talusConfig.cmake` with
-`SameMajorVersion` compatibility, LICENSE, `project(... VERSION ...)`); these
-items close the remaining gaps. The cross-platform and Release CI lanes are now
-in place; the remaining gap is an install/consumption smoke test.
+`SameMajorVersion` compatibility, LICENSE, `project(... VERSION ...)`), and the
+remaining release-readiness gaps are now closed.
 
 - Completed: add a Release-mode CI lane — gcc/clang build both Debug and Release in `.github/workflows/ci.yml`.
 - Completed: add Windows/MSVC and macOS CI lanes — `windows/MSVC` and `macos/AppleClang` (Debug + Release, warnings-as-errors) in `.github/workflows/ci.yml`, all green.
 - Completed: add public header version macros — `TALUS_VERSION_MAJOR/MINOR/PATCH`, `TALUS_VERSION`, and `TALUS_VERSION_STRING` in `include/talus/talus.hpp`, with a CMake sync guard.
 - Completed: pin minimum compiler versions in CI — `linux/gcc-12`, `linux/clang-15`, `macos/AppleClang 15`, and `windows/MSVC 2022` baseline lanes in `.github/workflows/ci.yml`.
 - Completed: document the release process and semver policy — `CHANGELOG.md` plus README release checklist, annotated tag convention, and `SameMajorVersion` compatibility policy.
-- Completed: document thread-safety guarantees — concurrent const queries are
-  safe, mutation requires external synchronization, and the code audit found no
-  mutable caches or hidden query-side writes.
-- **Install/consumption smoke test in CI.** A tiny downstream project that
-  consumes Talus via `find_package(talus)` against an installed tree (and via
-  FetchContent) and compiles a minimal program, so the install rules cannot
-  bit-rot unnoticed.
+- Completed: document thread-safety guarantees — concurrent const queries are safe; mutation requires external synchronization.
+- Completed: add install/consumption smoke tests — `tests/consumer_smoke` covers installed `find_package(talus)` and `FetchContent` in CI.
 
 Considered and rejected for 1.0: single-header amalgamation (the umbrella
 header suffices), a generated Doxygen site (comments exist; a site can come
@@ -286,11 +280,7 @@ comparison. They are intentionally deferred past the v0.1.x line.
 
 ## Next Concrete Task
 
-Sections 1–8 are complete, including the large stress tests (section 6). The
-R*-tree is feature-complete, so the next focus is 1.0 release readiness
-(section 9) rather than the k-d tree (section 10), which is deferred to 1.1
-per the Versioning and Release Sequencing plan. The cross-platform CI lanes
-(Windows/MSVC, macOS), the Release-mode lane, header version macros, pinned
-minimum compiler baseline lanes, and release-process documentation are now
-done, and thread-safety guarantees are documented and audited. Next
-release-readiness step: add the install/consumption smoke test.
+Sections 1–9 are complete, including the large stress tests (section 6) and 1.0
+release-readiness gates (section 9). The R*-tree is feature-complete, so the
+next focus is the k-d tree (section 10), scheduled for 1.1 per the Versioning
+and Release Sequencing plan.
