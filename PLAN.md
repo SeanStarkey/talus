@@ -190,16 +190,14 @@ deferred to 1.1). Hardening and process work that should gate the 1.0 tag. The p
 fundamentals already exist (install/export rules, `talusConfig.cmake` with
 `SameMajorVersion` compatibility, LICENSE, `project(... VERSION ...)`); these
 items close the remaining gaps. The cross-platform and Release CI lanes are now
-in place; the remaining gaps are release process, thread-safety docs, and an
-install/consumption smoke test.
+in place; the remaining gaps are thread-safety docs and an install/consumption
+smoke test.
 
 - Completed: add a Release-mode CI lane — gcc/clang build both Debug and Release in `.github/workflows/ci.yml`.
 - Completed: add Windows/MSVC and macOS CI lanes — `windows/MSVC` and `macos/AppleClang` (Debug + Release, warnings-as-errors) in `.github/workflows/ci.yml`, all green.
 - Completed: add public header version macros — `TALUS_VERSION_MAJOR/MINOR/PATCH`, `TALUS_VERSION`, and `TALUS_VERSION_STRING` in `include/talus/talus.hpp`, with a CMake sync guard.
 - Completed: pin minimum compiler versions in CI — `linux/gcc-12`, `linux/clang-15`, `macos/AppleClang 15`, and `windows/MSVC 2022` baseline lanes in `.github/workflows/ci.yml`.
-- **Release process.** CHANGELOG.md, annotated git tags per release, and a
-  stated semver policy — the package config already promises
-  `SameMajorVersion` compatibility, so the policy should be written down.
+- Completed: document the release process and semver policy — `CHANGELOG.md` plus README release checklist, annotated tag convention, and `SameMajorVersion` compatibility policy.
 - **Thread-safety documentation.** State the guarantee explicitly in the
   README and class-level Doxygen comments (expected: concurrent const queries
   are safe; any mutation requires external synchronization), and audit the
@@ -294,6 +292,7 @@ Sections 1–8 are complete, including the large stress tests (section 6). The
 R*-tree is feature-complete, so the next focus is 1.0 release readiness
 (section 9) rather than the k-d tree (section 10), which is deferred to 1.1
 per the Versioning and Release Sequencing plan. The cross-platform CI lanes
-(Windows/MSVC, macOS), the Release-mode lane, header version macros, and pinned
-minimum compiler baseline lanes are now done. Next release-readiness step:
-document the release process and semver policy.
+(Windows/MSVC, macOS), the Release-mode lane, header version macros, pinned
+minimum compiler baseline lanes, and release-process documentation are now
+done. Next release-readiness step: document and audit the thread-safety
+guarantee.

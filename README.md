@@ -114,7 +114,7 @@ hnswlib) solve a different problem than Talus's exact, low-dimensional queries.
 include(FetchContent)
 FetchContent_Declare(talus
     GIT_REPOSITORY https://github.com/SeanStarkey/talus
-    GIT_TAG        main)  # no tagged release yet; v0.1.0 is the first planned tag
+    GIT_TAG        main)  # use a release tag such as v0.1.0 once published
 FetchContent_MakeAvailable(talus)
 
 target_link_libraries(my_project PRIVATE talus::talus)
@@ -130,6 +130,41 @@ target_link_libraries(my_project PRIVATE talus::talus)
 ### Manual
 
 Copy `include/talus/` into your project. Add it to your include path. Done.
+
+---
+
+## Versioning and releases
+
+Talus follows semantic versioning. The first stable API is planned for 1.0; until
+then, 0.x releases may still include breaking public API changes while the
+R*-tree surface hardens, and those changes are called out in
+[CHANGELOG.md](CHANGELOG.md). Starting at 1.0, source-compatible updates stay
+within the same major version, matching the installed CMake package config's
+`SameMajorVersion` compatibility rule.
+
+Every release has:
+
+- a `CHANGELOG.md` entry with the release date and user-visible changes,
+- synchronized `project(talus VERSION ...)` and `<talus/talus.hpp>` version
+  macros,
+- a passing CI run for the release commit,
+- an annotated git tag named `vMAJOR.MINOR.PATCH`,
+- a GitHub release whose notes come from the matching changelog entry.
+
+Release checklist:
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+ctest --test-dir build --output-on-failure
+
+cmake -B build-release -DCMAKE_BUILD_TYPE=Release -DTALUS_WARNINGS_AS_ERRORS=ON
+cmake --build build-release
+ctest --test-dir build-release --output-on-failure
+
+git tag -a vMAJOR.MINOR.PATCH -m "talus vMAJOR.MINOR.PATCH"
+git push origin vMAJOR.MINOR.PATCH
+```
 
 ---
 
@@ -393,6 +428,9 @@ To run it with the sample JSON import file:
 - [x] STR bulk loading
 - [x] Microbenchmarks (insert, search, nearest neighbor, bulk load)
 - [x] Header version macros
+- [x] Release process and semantic versioning policy
+- [ ] Thread-safety guarantees
+- [ ] Install/consumption smoke tests
 - [ ] k-d tree
 - [ ] Benchmarks vs Boost.Geometry and nanoflann
 
