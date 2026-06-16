@@ -238,7 +238,7 @@ choice for static point datasets and nearest-neighbor-heavy workloads.
 ### 11. Longer-range / exploratory (post-1.0)
 
 These are larger, lower-priority efforts surfaced in the README "Why Talus"
-comparison. They are intentionally deferred past the v0.1.x line.
+comparison. They are intentionally deferred until after the 1.0 release.
 
 - **Index serialization (save/load).** Pairs naturally with STR bulk load (load
   = read entries, bulk-build). The node layout already cooperates: entries are

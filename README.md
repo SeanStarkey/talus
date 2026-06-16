@@ -9,7 +9,7 @@ A zero-dependency, header-only C++20 spatial index library. Drop it in, include 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 
-> **Status: early development (v0.1.0, in progress).** Working today: automatic
+> **Status: stable R*-tree API (v1.0.0).** Working today: automatic
 > type detection, custom coordinate extractors for types Talus cannot detect,
 > `insert`, STR bulk loading with `bulk_load`, rectangle
 > (`within`) queries, radius searches, nearest-neighbor and k-nearest queries,
@@ -115,7 +115,7 @@ hnswlib) solve a different problem than Talus's exact, low-dimensional queries.
 include(FetchContent)
 FetchContent_Declare(talus
     GIT_REPOSITORY https://github.com/SeanStarkey/talus
-    GIT_TAG        main)  # use a release tag such as v0.1.0 once published
+    GIT_TAG        v1.0.0)
 FetchContent_MakeAvailable(talus)
 
 target_link_libraries(my_project PRIVATE talus::talus)
@@ -148,12 +148,9 @@ Copy `include/talus/` into your project. Add it to your include path. Done.
 
 ## Versioning and releases
 
-Talus follows semantic versioning. The first stable API is planned for 1.0; until
-then, 0.x releases may still include breaking public API changes while the
-R*-tree surface hardens, and those changes are called out in
-[CHANGELOG.md](CHANGELOG.md). Starting at 1.0, source-compatible updates stay
-within the same major version, matching the installed CMake package config's
-`SameMajorVersion` compatibility rule.
+Talus follows semantic versioning. The first stable API is 1.0. Starting at
+1.0, source-compatible updates stay within the same major version, matching the
+installed CMake package config's `SameMajorVersion` compatibility rule.
 
 Every release has:
 
@@ -241,11 +238,11 @@ and requires them to match the stored bounds exactly.
 
 ```cpp
 // Version macros from <talus/talus.hpp>
-#define TALUS_VERSION_MAJOR 0
-#define TALUS_VERSION_MINOR 1
+#define TALUS_VERSION_MAJOR 1
+#define TALUS_VERSION_MINOR 0
 #define TALUS_VERSION_PATCH 0
-#define TALUS_VERSION 100  // major * 10000 + minor * 100 + patch
-#define TALUS_VERSION_STRING "0.1.0"
+#define TALUS_VERSION 10000  // major * 10000 + minor * 100 + patch
+#define TALUS_VERSION_STRING "1.0.0"
 
 talus::SpatialIndex<T, Scalar = double, MaxChildren = 9,
                     Extractor = DefaultExtractor<Scalar>>

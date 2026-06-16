@@ -7,9 +7,9 @@ while the R*-tree surface hardens; breaking changes are called out explicitly.
 Starting at 1.0, compatible releases stay within the same major version, matching
 the installed CMake package config's `SameMajorVersion` policy.
 
-## [0.1.0] - Unreleased
+## [1.0.0] - 2026-06-16
 
-First planned public release.
+First stable public release.
 
 ### Added
 

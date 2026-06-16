@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(talus VERSION 0.1.0 LANGUAGES CXX)
+project(talus VERSION 1.0.0 LANGUAGES CXX)
 
 # Keep the public vendorable header version macros synchronized with the CMake
 # package version used by installed `talusConfigVersion.cmake`.

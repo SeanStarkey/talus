@@ -15,10 +15,10 @@ struct Site {
 } // namespace
 
 int main() {
-    static_assert(TALUS_VERSION_MAJOR == 0);
-    static_assert(TALUS_VERSION_MINOR == 1);
+    static_assert(TALUS_VERSION_MAJOR == 1);
+    static_assert(TALUS_VERSION_MINOR == 0);
     static_assert(TALUS_VERSION_PATCH == 0);
-    static_assert(TALUS_VERSION == 100);
+    static_assert(TALUS_VERSION == 10000);
 
     talus::SpatialIndex<Site> index;
     index.insert(Site{0.0, 0.0, 1});
