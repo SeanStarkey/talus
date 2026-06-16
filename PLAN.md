@@ -214,10 +214,13 @@ choice for static point datasets and nearest-neighbor-heavy workloads.
 - Start the post-1.0 comparative benchmark track: add an optional
   `TALUS_BUILD_COMPARATIVE_BENCHMARKS` target for R-tree-to-R-tree comparisons
   against Boost.Geometry's rtree and, if setup stays lightweight, `RTree.h`.
-  Keep third-party dependencies out of the default build, report dataset shape,
-  seed, compiler, build type, and machine notes, and compare insert, bulk load,
-  rectangle search, radius search, nearest/k-nearest, and erase on identical
-  point and box workloads.
+  Keep third-party dependencies out of the default build: the option defaults
+  OFF, all competitor dependency discovery/downloads are guarded by that option,
+  and no competitor headers or targets affect `talus`, tests, examples,
+  install, or ordinary benchmarks. Report dataset shape, seed, compiler, build
+  type, and machine notes, and compare insert, bulk load, rectangle search,
+  radius search, nearest/k-nearest, and erase on identical point and box
+  workloads.
 - Decide the structural design first: static (bulk-built, median-split, array
   packed — simplest and fastest to query) vs dynamic (insert/erase). Suggested
   scope for 1.1: build-from-range plus queries; defer dynamic mutation unless
