@@ -211,6 +211,13 @@ Versioning and Release Sequencing). A k-d tree indexes points only, so it
 complements the R*-tree (which also handles boxes) and should be the faster
 choice for static point datasets and nearest-neighbor-heavy workloads.
 
+- Start the post-1.0 comparative benchmark track: add an optional
+  `TALUS_BUILD_COMPARATIVE_BENCHMARKS` target for R-tree-to-R-tree comparisons
+  against Boost.Geometry's rtree and, if setup stays lightweight, `RTree.h`.
+  Keep third-party dependencies out of the default build, report dataset shape,
+  seed, compiler, build type, and machine notes, and compare insert, bulk load,
+  rectangle search, radius search, nearest/k-nearest, and erase on identical
+  point and box workloads.
 - Decide the structural design first: static (bulk-built, median-split, array
   packed — simplest and fastest to query) vs dynamic (insert/erase). Suggested
   scope for 1.1: build-from-range plus queries; defer dynamic mutation unless
@@ -232,6 +239,12 @@ choice for static point datasets and nearest-neighbor-heavy workloads.
 - Benchmarks: add k-d tree build and query benchmarks to
   `benchmarks/rtree_benchmarks.cpp` (or a sibling file) so the R*-tree and
   k-d tree can be compared on identical point workloads.
+- Comparative benchmarks: once Talus has a k-d tree, add nanoflann comparisons
+  under the optional comparative-benchmark target. Compare static point build,
+  radius search, nearest neighbor, and k-nearest workloads against the Talus
+  k-d tree first, and include the R*-tree only as a secondary "general index on
+  point data" baseline so the results are not framed as a direct replacement
+  for a point-specialized k-d tree.
 - Examples/README: driver menu options exercising the k-d tree, README status
   note, "Why Talus" row, API reference, and roadmap updates.
 
