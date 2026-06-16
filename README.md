@@ -330,8 +330,9 @@ for t in build-vg/tests/talus_*; do valgrind --error-exitcode=1 --leak-check=ful
 CI (GitHub Actions) builds and tests on every push and pull request across
 **Linux** (GCC and Clang), **macOS** (Apple Clang), and **Windows** (MSVC) —
 each in both Debug and Release with warnings treated as errors (`-Werror` /
-`/WX`) — and additionally runs the ASan+UBSan suite and the tests under Valgrind
-(Memcheck) on Linux.
+`/WX`). Dedicated baseline lanes also prove the advertised minimum compiler
+floor: GCC 12, Clang 15, Apple Clang 15, and MSVC 2022. CI additionally runs the
+ASan+UBSan suite and the tests under Valgrind (Memcheck) on Linux.
 
 ## Benchmarks
 

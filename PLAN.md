@@ -196,15 +196,7 @@ install/consumption smoke test.
 - Completed: add a Release-mode CI lane — gcc/clang build both Debug and Release in `.github/workflows/ci.yml`.
 - Completed: add Windows/MSVC and macOS CI lanes — `windows/MSVC` and `macos/AppleClang` (Debug + Release, warnings-as-errors) in `.github/workflows/ci.yml`, all green.
 - Completed: add public header version macros — `TALUS_VERSION_MAJOR/MINOR/PATCH`, `TALUS_VERSION`, and `TALUS_VERSION_STRING` in `include/talus/talus.hpp`, with a CMake sync guard.
-- **Pin minimum compiler versions in CI.** The lanes run on `*-latest`
-  runners, so they verify only *current* GCC/Clang/MSVC/Apple Clang — but the
-  README advertises minimums (GCC 12+, Clang 15+, MSVC 2022, Apple Clang 15+).
-  Add jobs that build/test against those floor versions (e.g. pinned
-  `ubuntu`/container images or `apt`-installed `g++-12`/`clang-15`, an explicit
-  Xcode/Apple-Clang version on macOS, a fixed VS toolset on Windows) so the
-  documented baseline is proven, not asserted. Until then, either keep the
-  README wording as "current" compilers or treat the stated minimums as
-  aspirational.
+- Completed: pin minimum compiler versions in CI — `linux/gcc-12`, `linux/clang-15`, `macos/AppleClang 15`, and `windows/MSVC 2022` baseline lanes in `.github/workflows/ci.yml`.
 - **Release process.** CHANGELOG.md, annotated git tags per release, and a
   stated semver policy — the package config already promises
   `SameMajorVersion` compatibility, so the policy should be written down.
@@ -302,6 +294,6 @@ Sections 1–8 are complete, including the large stress tests (section 6). The
 R*-tree is feature-complete, so the next focus is 1.0 release readiness
 (section 9) rather than the k-d tree (section 10), which is deferred to 1.1
 per the Versioning and Release Sequencing plan. The cross-platform CI lanes
-(Windows/MSVC, macOS), the Release-mode lane, and header version macros are now
-done. Next release-readiness step: pin minimum compiler versions in CI so the
-documented compiler baseline is proven, not asserted.
+(Windows/MSVC, macOS), the Release-mode lane, header version macros, and pinned
+minimum compiler baseline lanes are now done. Next release-readiness step:
+document the release process and semver policy.
