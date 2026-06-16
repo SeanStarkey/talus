@@ -27,10 +27,12 @@ namespace talus {
 
 /// @brief Thrown by `SpatialIndex` when given geometry with invalid bounds.
 ///
-/// Bounds are "invalid" when a coordinate is NaN or infinite, or `min > max` on
-/// an axis — that is, when `BoundingBox::is_valid()` is false. Derives from
-/// `std::invalid_argument`, so it can also be caught as `std::invalid_argument`
-/// or `std::exception`.
+/// Bounds are "invalid" when a coordinate is NaN or infinite, `min > max` on an
+/// axis — that is, when `BoundingBox::is_valid()` is false — or a coordinate
+/// magnitude exceeds `coordinate_limit<Scalar>()`, the bound past which squared
+/// distance math overflows (see that function and the index's domain note).
+/// Derives from `std::invalid_argument`, so it can also be caught as
+/// `std::invalid_argument` or `std::exception`.
 class invalid_geometry : public std::invalid_argument {
 public:
     invalid_geometry()
@@ -55,6 +57,16 @@ public:
 /// `clear`, move assignment, and destruction) require exclusive external
 /// synchronization. Talus does not perform internal locking; user-provided value
 /// types and visitor callbacks are responsible for avoiding their own data races.
+///
+/// Coordinate domain: stored values and distance-query points (the `query`
+/// argument of `nearest_neighbor`, `nearest_neighbors`, and `radius_search`)
+/// must have coordinates within ±`coordinate_limit<Scalar>()`, and `radius`
+/// small enough that `radius*radius` stays finite. This keeps the squared
+/// distances driving nearest-neighbor and radius queries finite and correctly
+/// ordered. Values or query points outside the domain throw `invalid_geometry`.
+/// The limit is astronomically large (~3.3e153 for `double`), so real spatial
+/// data is never affected. Rectangular `search`/`within` use only comparisons,
+/// not distances, so they accept any valid finite `query_bounds`.
 template<typename T, typename Scalar = double, std::size_t MaxChildren = 9,
          typename Extractor = DefaultExtractor<Scalar>>
     requires CoordExtractor<Extractor, T, Scalar>
@@ -127,7 +139,8 @@ public:
     /// @brief Inserts a copy of `value` into the index.
     ///
     /// @throws invalid_geometry if the value's extracted bounds are invalid
-    /// (a NaN/infinite coordinate, or min > max). The index is left unchanged.
+    /// (a NaN/infinite coordinate, min > max, or a magnitude beyond
+    /// `coordinate_limit<Scalar>()`). The index is left unchanged.
     void insert(const T& value)
         requires std::copy_constructible<T> {
         insert_impl(value, value);
@@ -157,7 +170,8 @@ public:
     ///
     /// @throws std::logic_error if the index is not empty.
     /// @throws invalid_geometry if any value's extracted bounds are invalid
-    /// (a NaN/infinite coordinate, or min > max).
+    /// (a NaN/infinite coordinate, min > max, or a magnitude beyond
+    /// `coordinate_limit<Scalar>()`).
     template<std::ranges::input_range Range>
         requires std::constructible_from<T, std::ranges::range_reference_t<Range>>
     void bulk_load(Range&& values) {
@@ -171,9 +185,7 @@ public:
         }
         for (auto&& value : values) {
             const bounds_type bounds = extractor_(value);
-            if (!bounds.is_valid()) {
-                throw invalid_geometry{};
-            }
+            validate_bounds(bounds);
             entries.emplace_back(bounds, std::forward<decltype(value)>(value));
         }
 
@@ -194,9 +206,7 @@ public:
         entries.reserve(values.size());
         for (T& value : values) {
             const bounds_type bounds = extractor_(value);
-            if (!bounds.is_valid()) {
-                throw invalid_geometry{};
-            }
+            validate_bounds(bounds);
             entries.emplace_back(bounds, std::move(value));
         }
 
@@ -241,9 +251,7 @@ public:
     bool erase(const T& value)
         requires std::equality_comparable<T> {
         const bounds_type bounds = extractor_(value);
-        if (!bounds.is_valid()) {
-            throw invalid_geometry{};
-        }
+        validate_bounds(bounds);
 
         if (root_ == nullptr) {
             return false;
@@ -333,12 +341,14 @@ public:
     /// bounded geometries containing the query point have distance zero. Values
     /// exactly on the radius boundary are included.
     ///
-    /// @throws invalid_geometry if the query coordinates or radius are NaN or
-    /// infinite, or if `radius` is negative.
+    /// @throws invalid_geometry if a query coordinate is NaN, infinite, or
+    /// beyond `coordinate_limit<Scalar>()`; if `radius` is NaN, infinite, or
+    /// negative; or if `radius` is so large that `radius*radius` overflows.
     [[nodiscard]] std::vector<T> radius_search(Point<Scalar> query, Scalar radius) const
         requires std::copy_constructible<T> {
-        if (!std::isfinite(query.x) || !std::isfinite(query.y)
-            || !std::isfinite(radius) || radius < Scalar{0}) {
+        validate_query_point(query);
+        if (!std::isfinite(radius) || radius < Scalar{0}
+            || !std::isfinite(radius * radius)) {
             throw invalid_geometry{};
         }
 
@@ -359,12 +369,14 @@ public:
     /// traversal by returning false, and the returned count includes every
     /// visited value.
     ///
-    /// @throws invalid_geometry if the query coordinates or radius are NaN or
-    /// infinite, or if `radius` is negative.
+    /// @throws invalid_geometry if a query coordinate is NaN, infinite, or
+    /// beyond `coordinate_limit<Scalar>()`; if `radius` is NaN, infinite, or
+    /// negative; or if `radius` is so large that `radius*radius` overflows.
     template<QueryVisitor<T> Visitor>
     std::size_t radius_search(Point<Scalar> query, Scalar radius, Visitor&& visitor) const {
-        if (!std::isfinite(query.x) || !std::isfinite(query.y)
-            || !std::isfinite(radius) || radius < Scalar{0}) {
+        validate_query_point(query);
+        if (!std::isfinite(radius) || radius < Scalar{0}
+            || !std::isfinite(radius * radius)) {
             throw invalid_geometry{};
         }
 
@@ -379,12 +391,11 @@ public:
     /// Distance is measured from the query point to each stored value's bounds;
     /// bounded geometries containing the query point have distance zero.
     ///
-    /// @throws invalid_geometry if either query coordinate is NaN or infinite.
+    /// @throws invalid_geometry if either query coordinate is NaN, infinite, or
+    /// beyond `coordinate_limit<Scalar>()`.
     [[nodiscard]] std::optional<T> nearest_neighbor(Point<Scalar> query) const
         requires std::copy_constructible<T> {
-        if (!std::isfinite(query.x) || !std::isfinite(query.y)) {
-            throw invalid_geometry{};
-        }
+        validate_query_point(query);
 
         if (root_ == nullptr) {
             return std::nullopt;
@@ -406,12 +417,11 @@ public:
     /// entries tie at the k-th distance. Fewer than `k` values are returned when
     /// the index holds fewer than `k`; `k == 0` returns an empty vector.
     ///
-    /// @throws invalid_geometry if either query coordinate is NaN or infinite.
+    /// @throws invalid_geometry if either query coordinate is NaN, infinite, or
+    /// beyond `coordinate_limit<Scalar>()`.
     [[nodiscard]] std::vector<T> nearest_neighbors(Point<Scalar> query, std::size_t k) const
         requires std::copy_constructible<T> {
-        if (!std::isfinite(query.x) || !std::isfinite(query.y)) {
-            throw invalid_geometry{};
-        }
+        validate_query_point(query);
 
         std::vector<T> matches;
         if (root_ == nullptr || k == 0) {
@@ -429,6 +439,23 @@ public:
 private:
     using node_type = detail::RTreeNode<T, Scalar, MaxChildren>;
     using pool_type = detail::PoolAllocator<node_type>;
+
+    /// Rejects bounds that are malformed or outside the distance-safe coordinate
+    /// domain (see `talus::coordinate_limit`). Shared by every mutating entry
+    /// point so stored coordinates can never overflow the squared-distance math.
+    static void validate_bounds(const bounds_type& bounds) {
+        if (!bounds.is_valid() || !within_coordinate_limit(bounds)) {
+            throw invalid_geometry{};
+        }
+    }
+
+    /// Rejects distance-query points outside the coordinate domain. The
+    /// magnitude test also rejects NaN and infinite coordinates.
+    static void validate_query_point(Point<Scalar> query) {
+        if (!within_coordinate_limit(query)) {
+            throw invalid_geometry{};
+        }
+    }
 
     /// Hands validated leaf entries to the STR builder. The caller has already
     /// verified the index is empty, so on failure resetting back to the empty
@@ -461,9 +488,7 @@ private:
 
     template<typename U>
     void insert_with_bounds(bounds_type bounds, U&& value) {
-        if (!bounds.is_valid()) {
-            throw invalid_geometry{};
-        }
+        validate_bounds(bounds);
 
         if (root_ == nullptr) {
             root_ = pool_.create();  // empty leaf root, allocated on first insert

@@ -27,3 +27,17 @@ First planned public release.
 - Cross-platform CI coverage for Linux, macOS, and Windows, with Debug and
   Release lanes, warning-clean baseline compiler lanes, sanitizer coverage, and
   Valgrind coverage on Linux.
+- `coordinate_limit<Scalar>()` and `within_coordinate_limit()` helpers in
+  `<talus/geometry.hpp>` defining the distance-safe coordinate domain.
+
+### Fixed
+
+- Distance queries no longer silently corrupt results at extreme coordinate
+  magnitudes. Squared Euclidean distances (`dx*dx + dy*dy`) and squared radii
+  could overflow to `+inf` for finite-but-enormous inputs, collapsing
+  nearest-neighbor ordering and making `radius_search` match the entire index.
+  `SpatialIndex` now rejects stored values and distance-query points outside
+  `coordinate_limit<Scalar>()`, and a `radius` whose square overflows, with
+  `talus::invalid_geometry`. The limit (~3.3e153 for `double`) is far beyond any
+  real spatial data; rectangular `search`/`within`, which use only comparisons,
+  are unaffected.

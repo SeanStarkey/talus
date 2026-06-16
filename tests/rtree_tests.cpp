@@ -843,6 +843,79 @@ void test_spatial_index_throws_on_invalid_geometry() {
     TALUS_CHECK(index.size() == before);
 }
 
+// Test: test_spatial_index_enforces_coordinate_domain
+// Verifies the distance-safe coordinate domain is enforced at the public
+// boundary so the squared-distance math can never overflow to +inf (the M1
+// finding). Coordinates beyond coordinate_limit are rejected by every
+// coordinate-taking entry point (insert, erase, bulk_load, nearest_neighbor,
+// nearest_neighbors, radius_search) with talus::invalid_geometry, and rejected
+// mutations leave the index unchanged. radius_search additionally rejects a
+// radius so large that radius*radius overflows — rather than silently matching
+// every entry — while a large but in-domain radius still matches all stored
+// values. Rectangular search, which uses comparisons rather than distances,
+// remains valid for query bounds of any finite magnitude.
+void test_spatial_index_enforces_coordinate_domain() {
+    const double limit = talus::coordinate_limit<double>();
+    const double over = std::nextafter(limit, std::numeric_limits<double>::infinity());
+
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    index.insert(PointRecord{1.0, 2.0, 1});
+    index.insert(PointRecord{-3.0, 4.0, 2});
+    const std::size_t before = index.size();
+
+    auto throws_invalid = [](auto&& fn) {
+        bool threw = false;
+        try {
+            fn();
+        } catch (const talus::invalid_geometry&) {
+            threw = true;
+        }
+        return threw;
+    };
+
+    // Every coordinate-taking entry point rejects an out-of-domain coordinate,
+    // and rejected mutations leave the index unchanged.
+    TALUS_CHECK(throws_invalid([&] { index.insert(PointRecord{over, 0.0, 3}); }));
+    TALUS_CHECK(index.size() == before);
+    TALUS_CHECK(throws_invalid([&] { (void)index.erase(PointRecord{over, 0.0, 3}); }));
+    TALUS_CHECK(index.size() == before);
+    TALUS_CHECK(throws_invalid([&] {
+        (void)index.nearest_neighbor(talus::Point<double>{over, 0.0});
+    }));
+    TALUS_CHECK(throws_invalid([&] {
+        (void)index.nearest_neighbors(talus::Point<double>{0.0, over}, 3);
+    }));
+    TALUS_CHECK(throws_invalid([&] {
+        (void)index.radius_search(talus::Point<double>{over, 0.0}, 1.0);
+    }));
+
+    // bulk_load validates the whole range up front; an out-of-domain entry
+    // leaves the (empty) target unchanged.
+    talus::SpatialIndex<PointRecord, double, 4> bulk;
+    TALUS_CHECK(throws_invalid([&] {
+        bulk.bulk_load(std::vector<PointRecord>{{0.0, 0.0, 1}, {over, 0.0, 2}});
+    }));
+    TALUS_CHECK(bulk.empty());
+
+    // A radius whose square overflows to +inf is rejected (it would otherwise
+    // make every entry compare as "within").
+    const double huge_radius = std::sqrt(std::numeric_limits<double>::max()) * 2.0;
+    TALUS_CHECK(std::isfinite(huge_radius));               // the radius itself is finite
+    TALUS_CHECK(!std::isfinite(huge_radius * huge_radius)); // but its square overflows
+    TALUS_CHECK(throws_invalid([&] {
+        (void)index.radius_search(talus::Point<double>{0.0, 0.0}, huge_radius);
+    }));
+
+    // A large but in-domain radius (square stays finite) is accepted and matches
+    // every stored value.
+    TALUS_CHECK(std::isfinite(limit * limit));  // precondition: radius*radius finite
+    TALUS_CHECK(index.radius_search(talus::Point<double>{0.0, 0.0}, limit).size() == before);
+
+    // Rectangular search uses only comparisons, so a query box of any finite
+    // magnitude — even beyond the distance domain — is still valid.
+    TALUS_CHECK(index.search(Box{{-over, -over}, {over, over}}).size() == before);
+}
+
 // Large value type whose values are stored out of line (boxed). Has `.x/.y` for
 // indexing and `.id` for oracle comparison; the 256-byte blob makes it boxed.
 struct BigRecord {
@@ -1373,6 +1446,7 @@ int main() {
     test_spatial_index_randomized_nearest_neighbors_matches_brute_force();
     test_spatial_index_is_movable();
     test_spatial_index_throws_on_invalid_geometry();
+    test_spatial_index_enforces_coordinate_domain();
     test_spatial_index_handles_large_boxed_values();
     test_spatial_index_bulk_load_matches_brute_force();
     test_spatial_index_bulk_load_bounded_geometry_matches_brute_force();

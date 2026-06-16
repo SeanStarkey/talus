@@ -303,6 +303,16 @@ or infinite, a radius is negative, or a box has `min > max`. A rejected
 `insert` leaves the index unchanged, and a rejected `erase` leaves the index
 unchanged.
 
+Stored values and distance-query points must also lie within
+`talus::coordinate_limit<Scalar>()` (≈3.3e153 for `double`), and `radius` must
+be small enough that `radius*radius` stays finite. This keeps the squared
+Euclidean distances behind nearest-neighbor and radius queries from overflowing
+to `+inf` (which would otherwise collapse the distance ordering and make
+`radius_search` match the entire index); values or queries outside the domain
+throw `invalid_geometry`. The limit is far beyond any real spatial dataset, and
+rectangular `search`/`within` — which use comparisons, not distances — accept
+any valid finite box.
+
 `bulk_load` builds the tree bottom-up with the Sort-Tile-Recursive (STR)
 algorithm — much faster than inserting values one at a time, and it produces a
 better-packed tree. It requires an empty index and throws `std::logic_error`

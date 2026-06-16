@@ -2,6 +2,7 @@
 
 #include "test_check.hpp"
 #include <cmath>
+#include <limits>
 #include <string_view>
 
 namespace {
@@ -281,10 +282,59 @@ void test_concepts() {
     static_assert(pwb_float_box.min.x == -5.0F); // x/y values (1.0, 2.0) were NOT used
 }
 
+// Test: test_coordinate_domain
+// Verifies the distance-safe coordinate domain helpers introduced to close the
+// squared-distance overflow finding. coordinate_limit() must be finite and
+// astronomically large; within_coordinate_limit() must accept in-domain
+// coordinates and reject out-of-domain, NaN, and infinite ones; and the limit
+// must be sized so the worst case — opposite corners of the domain — yields a
+// finite squared distance, the property nearest-neighbor and radius queries
+// rely on to keep their distance ordering correct.
+void test_coordinate_domain() {
+    using talus::BoundingBox;
+    using talus::coordinate_limit;
+    using talus::Point;
+    using talus::within_coordinate_limit;
+
+    const double limit = coordinate_limit<double>();
+    TALUS_CHECK(std::isfinite(limit));
+    TALUS_CHECK(limit > 1e150);  // never constrains real spatial data
+
+    // Defining property: the maximum per-axis separation across the domain
+    // (2*limit) squared and summed over both axes stays finite, so NN/radius
+    // squared distances never overflow to +inf.
+    const double span = 2.0 * limit;
+    TALUS_CHECK(std::isfinite(span * span + span * span));
+
+    // In-domain points and boxes (including the exact boundary) are accepted.
+    TALUS_CHECK(within_coordinate_limit(Point<double>{0.0, 0.0}));
+    TALUS_CHECK(within_coordinate_limit(Point<double>{limit, -limit}));
+    TALUS_CHECK(within_coordinate_limit(
+        BoundingBox<double>{{-limit, -limit}, {limit, limit}}));
+
+    // Just past the limit on either axis is rejected.
+    const double over = std::nextafter(limit, std::numeric_limits<double>::infinity());
+    TALUS_CHECK(!within_coordinate_limit(Point<double>{over, 0.0}));
+    TALUS_CHECK(!within_coordinate_limit(Point<double>{0.0, over}));
+    TALUS_CHECK(!within_coordinate_limit(
+        BoundingBox<double>{{0.0, 0.0}, {over, 0.0}}));
+
+    // The magnitude test subsumes a finiteness check: NaN and infinity reject.
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double inf = std::numeric_limits<double>::infinity();
+    TALUS_CHECK(!within_coordinate_limit(Point<double>{nan, 0.0}));
+    TALUS_CHECK(!within_coordinate_limit(Point<double>{0.0, inf}));
+
+    // The float specialization is likewise finite and large.
+    TALUS_CHECK(std::isfinite(coordinate_limit<float>()));
+    TALUS_CHECK(coordinate_limit<float>() > 1e15F);
+}
+
 } // namespace
 
 int main() {
     test_version_macros();
     test_geometry();
     test_concepts();
+    test_coordinate_domain();
 }

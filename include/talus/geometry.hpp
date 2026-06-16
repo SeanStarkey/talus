@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <type_traits>
 
 namespace talus {
@@ -94,7 +95,11 @@ struct BoundingBox {
     /// @brief Returns the minimum squared distance from `p` to this box.
     ///
     /// The result is zero when `p` is inside the box. Squared distance avoids a
-    /// square root in nearest-neighbor comparisons.
+    /// square root in nearest-neighbor comparisons. The squared sum is computed
+    /// without rescaling, so callers must keep coordinates within
+    /// `coordinate_limit<Scalar>()` (the public API enforces this) to keep the
+    /// result finite; beyond that magnitude it saturates to `+inf` and the
+    /// distance ordering it feeds becomes meaningless.
     [[nodiscard]] constexpr Scalar min_sq_distance(Point<Scalar> p) const noexcept {
         auto clamp = [](Scalar v, Scalar lo, Scalar hi) constexpr noexcept {
             return v < lo ? lo : (v > hi ? hi : v);
@@ -145,6 +150,10 @@ struct Segment {
 // ── Free-function helpers ─────────────────────────────────────────────────────
 
 /// @brief Returns squared Euclidean distance between two points.
+///
+/// Like `BoundingBox::min_sq_distance`, the squared sum saturates to `+inf` for
+/// coordinates beyond `coordinate_limit<Scalar>()`; keep inputs within that
+/// magnitude for a meaningful result.
 template<typename Scalar>
 [[nodiscard]] constexpr Scalar sq_distance(Point<Scalar> a, Point<Scalar> b) noexcept {
     static_assert(std::is_floating_point_v<Scalar>,
@@ -160,6 +169,50 @@ template<typename Scalar>
     static_assert(std::is_floating_point_v<Scalar>,
         "distance: Scalar must be a floating-point type to avoid signed overflow UB");
     return std::sqrt(sq_distance(a, b));
+}
+
+// ── Distance-safe coordinate domain ─────────────────────────────────────────────
+
+/// @brief Largest coordinate magnitude for which squared-distance math stays finite.
+///
+/// Talus computes squared Euclidean distances (`dx*dx + dy*dy`) and squared
+/// radii directly, without intermediate rescaling, to keep the
+/// nearest-neighbor and radius-search hot paths branch-free. The cost is a
+/// bounded input domain: for any two coordinates within ±`coordinate_limit`,
+/// every such squared term — and their sum — stays below `Scalar`'s finite
+/// range, so distance comparisons remain ordered and correct. Coordinates
+/// beyond this magnitude overflow those products to `+inf`, which silently
+/// collapses the distance ordering (everything becomes equidistant) and makes
+/// `radius_search` match the entire index. The public `SpatialIndex` API
+/// therefore rejects stored values and distance-query points outside the
+/// domain with `invalid_geometry`.
+///
+/// The bound is derived so the worst case — opposite corners of the domain —
+/// stays comfortably finite: a separation of up to `2*limit` per axis gives
+/// `2*(2*limit)^2 = 8*limit^2 = max/2 < max`. It is enormous (~3.3e153 for
+/// `double`), far past any physical spatial dataset, so it never constrains
+/// real use.
+template<typename Scalar = double>
+[[nodiscard]] inline Scalar coordinate_limit() noexcept {
+    static_assert(std::is_floating_point_v<Scalar>,
+        "coordinate_limit: Scalar must be a floating-point type");
+    return std::sqrt(std::numeric_limits<Scalar>::max() / Scalar{16});
+}
+
+/// @brief Returns true when `p` is finite and within `coordinate_limit<Scalar>()`.
+///
+/// The magnitude test also rejects NaN and infinities (neither compares
+/// `<= limit`), so it subsumes a finiteness check.
+template<typename Scalar>
+[[nodiscard]] inline bool within_coordinate_limit(Point<Scalar> p) noexcept {
+    const Scalar limit = coordinate_limit<Scalar>();
+    return std::abs(p.x) <= limit && std::abs(p.y) <= limit;
+}
+
+/// @brief Returns true when both corners of `b` are within `coordinate_limit<Scalar>()`.
+template<typename Scalar>
+[[nodiscard]] inline bool within_coordinate_limit(const BoundingBox<Scalar>& b) noexcept {
+    return within_coordinate_limit(b.min) && within_coordinate_limit(b.max);
 }
 
 } // namespace talus

@@ -198,6 +198,7 @@ remaining release-readiness gaps are now closed.
 - Completed: document the release process and semver policy — `CHANGELOG.md` plus README release checklist, annotated tag convention, and `SameMajorVersion` compatibility policy.
 - Completed: document thread-safety guarantees — concurrent const queries are safe; mutation requires external synchronization.
 - Completed: add install/consumption smoke tests — `tests/consumer_smoke` covers installed `find_package(talus)` and `FetchContent` in CI.
+- Completed: enforce a distance-safe coordinate domain — `coordinate_limit`/`within_coordinate_limit` (`geometry.hpp`) validated at the `SpatialIndex` boundary so extreme finite coordinates and an overflowing `radius` throw `invalid_geometry` instead of overflowing the squared-distance math (`tests/foundation_tests.cpp`, `tests/rtree_tests.cpp`).
 
 Considered and rejected for 1.0: single-header amalgamation (the umbrella
 header suffices), a generated Doxygen site (comments exist; a site can come
