@@ -48,6 +48,13 @@ public:
 /// — as the fourth template parameter; stateful extractors are passed to the
 /// constructor. Extraction must be deterministic: `erase` re-extracts bounds
 /// from its argument and requires them to equal the stored bounds exactly.
+///
+/// Thread safety: `const` member functions may be called concurrently on the
+/// same index, provided no thread is mutating, moving, or destroying that index
+/// at the same time. Mutating operations (`insert`, `bulk_load`, `erase`,
+/// `clear`, move assignment, and destruction) require exclusive external
+/// synchronization. Talus does not perform internal locking; user-provided value
+/// types and visitor callbacks are responsible for avoiding their own data races.
 template<typename T, typename Scalar = double, std::size_t MaxChildren = 9,
          typename Extractor = DefaultExtractor<Scalar>>
     requires CoordExtractor<Extractor, T, Scalar>

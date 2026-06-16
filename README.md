@@ -91,9 +91,10 @@ int main() {
 **Talus column: ✓ available now · ◐ planned ([Roadmap](#roadmap)).** Competitor
 columns describe their released features. Talus ships insert, STR bulk loading,
 range query, radius search, nearest-neighbor and k-nearest queries, visitor
-queries with custom predicates, deletion, and a custom coordinate extractor
-escape hatch for opaque types, plus header version macros today; N-dimensional
-support and serialization are longer-range (post-1.0) items.
+queries with custom predicates, deletion, a custom coordinate extractor escape
+hatch for opaque types, header version macros, and documented thread-safety
+guarantees today; N-dimensional support and serialization are longer-range
+(post-1.0) items.
 *RTree.h* is the widely-vendored single-header R-tree (Guttman-style, e.g.
 `nushoin/RTree`): a plain R-tree with a callback-based rectangle search, removal,
 and save/load, configured through raw template parameters and min/max arrays
@@ -301,6 +302,15 @@ itself fails, the index is reset to a valid empty state.
 the argument first, so deletion requires both matching bounds and value equality.
 If multiple equal values were inserted, each `erase` call removes one of them.
 
+Thread safety: Talus does not perform internal locking. Multiple threads may
+call `const` member functions on the same `SpatialIndex` concurrently, including
+`size`, `empty`, `search`, `within`, `radius_search`, `nearest_neighbor`, and
+`nearest_neighbors`, as long as no thread is mutating, moving, or destroying that
+index at the same time. Any non-const operation (`insert`, `bulk_load`, `erase`,
+`clear`, move assignment, or destruction) requires exclusive external
+synchronization. User-provided value types and visitor callbacks must also avoid
+their own data races.
+
 Values are stored by value. Small values live inline in the tree nodes; values
 larger than 128 bytes are automatically stored out of line, so large payloads
 don't bloat the index's internal nodes. (For very large records, indexing a small
@@ -429,7 +439,7 @@ To run it with the sample JSON import file:
 - [x] Microbenchmarks (insert, search, nearest neighbor, bulk load)
 - [x] Header version macros
 - [x] Release process and semantic versioning policy
-- [ ] Thread-safety guarantees
+- [x] Thread-safety guarantees
 - [ ] Install/consumption smoke tests
 - [ ] k-d tree
 - [ ] Benchmarks vs Boost.Geometry and nanoflann
