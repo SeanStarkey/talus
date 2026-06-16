@@ -404,6 +404,69 @@ void test_spatial_index_grid_data_search_matches_brute_force() {
     }
 }
 
+// Test: test_spatial_index_degenerate_query_box_matches_brute_force
+// Verifies search/within with degenerate (zero-area) query boxes — single
+// points, vertical lines, and horizontal lines — match the brute-force oracle
+// through the tree traversal's pruning, including edge-touching intersection
+// against stored boxes. Static intersects() tests cover the predicate itself;
+// this covers it end to end through the index. A small fanout forces splits.
+void test_spatial_index_degenerate_query_box_matches_brute_force() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+
+    // A 5x5 integer grid: exact coordinates for degenerate queries to land on,
+    // and enough points to force splits at fanout 4.
+    int id = 0;
+    for (int gx = 0; gx < 5; ++gx) {
+        for (int gy = 0; gy < 5; ++gy) {
+            const PointRecord p{static_cast<double>(gx), static_cast<double>(gy), id++};
+            index.insert(p);
+            oracle.insert(p);
+        }
+    }
+
+    const std::vector<Box> point_queries = {
+        Box{{2.0, 2.0}, {2.0, 2.0}},      // point on a grid node
+        Box{{2.5, 2.5}, {2.5, 2.5}},      // point in empty space (no match)
+        Box{{3.0, 0.0}, {3.0, 4.0}},      // vertical line through a column
+        Box{{0.0, 1.0}, {4.0, 1.0}},      // horizontal line through a row
+        Box{{0.0, 0.0}, {0.0, 0.0}},      // corner point (boundary)
+        Box{{2.0, 1.0}, {2.0, 3.0}},      // partial vertical segment
+        Box{{-1.0, -1.0}, {-1.0, -1.0}},  // point outside the grid (no match)
+    };
+    for (const Box& query : point_queries) {
+        assert_same_ids(index.search(query), oracle.search(query));
+        assert_same_ids(index.within(query), oracle.within(query));
+    }
+
+    // Degenerate query boxes against stored boxes, exercising edge-touching
+    // intersects through the pruning. Box (gx,gy) spans
+    // [2gx, 2gx+1] x [2gy, 2gy+1], so a line at x == 1 lands exactly on the
+    // right edge of the column-0 boxes.
+    talus::SpatialIndex<BoundedRecord, double, 4> boxes;
+    talus::test::BruteForceIndex<BoundedRecord, double> box_oracle;
+    int bid = 0;
+    for (int gx = 0; gx < 4; ++gx) {
+        for (int gy = 0; gy < 4; ++gy) {
+            const BoundedRecord b{bid++, Box{
+                {static_cast<double>(gx) * 2.0, static_cast<double>(gy) * 2.0},
+                {static_cast<double>(gx) * 2.0 + 1.0, static_cast<double>(gy) * 2.0 + 1.0}}};
+            boxes.insert(b);
+            box_oracle.insert(b);
+        }
+    }
+
+    const std::vector<Box> box_queries = {
+        Box{{1.0, 0.0}, {1.0, 7.0}},  // vertical line on the boxes' right edges
+        Box{{0.0, 1.0}, {7.0, 1.0}},  // horizontal line on the boxes' top edges
+        Box{{0.5, 0.5}, {0.5, 0.5}},  // point inside a box
+        Box{{1.5, 1.5}, {1.5, 1.5}},  // point in the gap between boxes (no match)
+    };
+    for (const Box& query : box_queries) {
+        assert_same_ids(boxes.search(query), box_oracle.search(query));
+    }
+}
+
 // Test: test_spatial_index_radius_search_matches_brute_force_fixture
 // Verifies deterministic point radius searches match the brute-force oracle
 // after enough inserts to force public wrapper split propagation.
@@ -712,6 +775,92 @@ void test_spatial_index_nearest_neighbor_returns_a_minimum_on_ties() {
 
     // Unspecified which tied value wins, but deterministic for a fixed tree.
     TALUS_CHECK(index.nearest_neighbor(query)->id == nearest->id);
+}
+
+// Test: test_spatial_index_nearest_neighbors_count_at_tie_boundary
+// Pins the count contract of nearest_neighbors when more than k entries tie at
+// the k-th distance: exactly k results are returned (the surplus tied entries
+// are dropped), they are the closest available, and they stay ordered by
+// ascending distance. The randomized k-nearest tests offset coordinates to
+// avoid ties, so this boundary is otherwise untested. A small fanout forces a
+// split so the tie spans multiple nodes.
+void test_spatial_index_nearest_neighbors_count_at_tie_boundary() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    // Inner ring: four points at squared distance 1 from the origin.
+    index.insert(PointRecord{1.0, 0.0, 1});
+    index.insert(PointRecord{-1.0, 0.0, 2});
+    index.insert(PointRecord{0.0, 1.0, 3});
+    index.insert(PointRecord{0.0, -1.0, 4});
+    // Outer ring: four points at squared distance 2 from the origin.
+    index.insert(PointRecord{1.0, 1.0, 5});
+    index.insert(PointRecord{1.0, -1.0, 6});
+    index.insert(PointRecord{-1.0, 1.0, 7});
+    index.insert(PointRecord{-1.0, -1.0, 8});
+
+    const talus::Point<double> q{0.0, 0.0};
+    auto sq = [&](const PointRecord& r) {
+        return talus::sq_distance(q, talus::Point<double>{r.x, r.y});
+    };
+
+    // k smaller than the tied inner ring: exactly k returned, all from the ring
+    // at the minimum distance (which k of the four is unspecified).
+    const auto two = index.nearest_neighbors(q, 2);
+    TALUS_CHECK(two.size() == 2);
+    for (const PointRecord& r : two) {
+        TALUS_CHECK(sq(r) == 1.0);
+        TALUS_CHECK(r.id >= 1 && r.id <= 4);
+    }
+
+    // k equal to the inner ring: the whole first tier, exactly.
+    const auto four = index.nearest_neighbors(q, 4);
+    TALUS_CHECK(four.size() == 4);
+    assert_same_ids(four, std::vector<PointRecord>{
+        {1.0, 0.0, 1}, {-1.0, 0.0, 2}, {0.0, 1.0, 3}, {0.0, -1.0, 4}});
+
+    // k straddling the boundary: all four at distance 1, then two of the four at
+    // distance 2 — exactly k, ascending, the boundary tie truncated to fill k.
+    const auto six = index.nearest_neighbors(q, 6);
+    TALUS_CHECK(six.size() == 6);
+    for (std::size_t i = 0; i + 1 < six.size(); ++i) {
+        TALUS_CHECK(sq(six[i]) <= sq(six[i + 1]));
+    }
+    std::vector<double> six_sq;
+    for (const PointRecord& r : six) {
+        six_sq.push_back(sq(r));
+    }
+    std::sort(six_sq.begin(), six_sq.end());
+    TALUS_CHECK((six_sq == std::vector<double>{1.0, 1.0, 1.0, 1.0, 2.0, 2.0}));
+
+    // k beyond the size returns everything.
+    TALUS_CHECK(index.nearest_neighbors(q, 100).size() == 8);
+}
+
+// Test: test_spatial_index_nearest_neighbors_huge_k_returns_all
+// Verifies a huge k — including SIZE_MAX, the documented "all values by
+// distance" request — returns every stored value ordered by distance without
+// attempting to reserve k slots up front. Coordinates are offset per id so all
+// distances are distinct and the order is unique for exact comparison.
+void test_spatial_index_nearest_neighbors_huge_k_returns_all() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    std::mt19937 rng(98765);
+    std::uniform_real_distribution<double> coord(-500.0, 500.0);
+
+    for (int id = 0; id < 300; ++id) {
+        const PointRecord p{
+            coord(rng) + static_cast<double>(id) * 1.0e-6,
+            coord(rng) - static_cast<double>(id) * 1.0e-6,
+            id};
+        index.insert(p);
+        oracle.insert(p);
+    }
+
+    const talus::Point<double> query{12.0, -7.0};
+    const std::size_t huge = std::numeric_limits<std::size_t>::max();
+
+    const auto all = index.nearest_neighbors(query, huge);
+    TALUS_CHECK(all.size() == index.size());
+    assert_same_ordered_ids(all, oracle.nearest_neighbors(query, huge));
 }
 
 // Test: test_spatial_index_is_movable
@@ -1189,6 +1338,57 @@ void test_spatial_index_bulk_load_then_mutate_matches_brute_force() {
     }
 }
 
+// Test: test_spatial_index_min_fanout_matches_brute_force
+// Exercises the smallest supported fanout (MaxChildren = 4, min_children = 2),
+// where the split and condense fill-distribution arithmetic is tightest, across
+// insert -> search/radius -> erase (condense + reinsert) -> STR bulk_load
+// rebuild, diffing every stage against the brute-force oracle.
+void test_spatial_index_min_fanout_matches_brute_force() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    talus::test::BruteForceIndex<PointRecord, double> oracle;
+    std::mt19937 rng(13579);
+    std::uniform_real_distribution<double> coord(-50.0, 50.0);
+
+    std::vector<PointRecord> inserted;
+    for (int id = 0; id < 400; ++id) {
+        const PointRecord p{coord(rng), coord(rng), id};
+        index.insert(p);
+        oracle.insert(p);
+        inserted.push_back(p);
+    }
+
+    auto check_queries = [&] {
+        std::uniform_real_distribution<double> q(-60.0, 60.0);
+        for (int i = 0; i < 40; ++i) {
+            const double x0 = q(rng), x1 = q(rng), y0 = q(rng), y1 = q(rng);
+            const Box box{{std::min(x0, x1), std::min(y0, y1)},
+                          {std::max(x0, x1), std::max(y0, y1)}};
+            assert_same_ids(index.search(box), oracle.search(box));
+            const talus::Point<double> pt{q(rng), q(rng)};
+            assert_same_ids(index.radius_search(pt, 20.0), oracle.radius_search(pt, 20.0));
+        }
+        TALUS_CHECK(index.size() == oracle.size());
+    };
+
+    check_queries();
+
+    // Erase a third of the values, forcing condense and reinsertion at min fill.
+    std::shuffle(inserted.begin(), inserted.end(), rng);
+    const std::size_t erase_count = inserted.size() / 3;
+    for (std::size_t i = 0; i < erase_count; ++i) {
+        TALUS_CHECK(index.erase(inserted[i]) == oracle.erase(inserted[i]));
+    }
+    check_queries();
+
+    // Rebuild the survivors via STR bulk load and re-diff.
+    std::vector<PointRecord> survivors(
+        inserted.begin() + static_cast<std::ptrdiff_t>(erase_count), inserted.end());
+    index.clear();
+    index.bulk_load(survivors);
+    TALUS_CHECK(index.size() == oracle.size());
+    check_queries();
+}
+
 // Test: test_spatial_index_visitor_search_matches_vector_search
 // Verifies the visitor overload of `search` visits exactly the values the
 // vector-returning overload collects (randomized against the brute-force
@@ -1467,6 +1667,7 @@ int main() {
     test_spatial_index_erase_to_empty_then_reuse();
     test_spatial_index_randomized_erase_matches_brute_force();
     test_spatial_index_grid_data_search_matches_brute_force();
+    test_spatial_index_degenerate_query_box_matches_brute_force();
     test_spatial_index_radius_search_matches_brute_force_fixture();
     test_spatial_index_radius_search_matches_bounded_geometry_oracle();
     test_spatial_index_randomized_radius_search_matches_brute_force();
@@ -1476,6 +1677,8 @@ int main() {
     test_spatial_index_nearest_neighbors_matches_brute_force_fixture();
     test_spatial_index_randomized_nearest_neighbors_matches_brute_force();
     test_spatial_index_nearest_neighbor_returns_a_minimum_on_ties();
+    test_spatial_index_nearest_neighbors_count_at_tie_boundary();
+    test_spatial_index_nearest_neighbors_huge_k_returns_all();
     test_spatial_index_is_movable();
     test_spatial_index_throws_on_invalid_geometry();
     test_spatial_index_enforces_coordinate_domain();
@@ -1487,6 +1690,7 @@ int main() {
     test_spatial_index_bulk_load_throws_on_invalid_geometry();
     test_spatial_index_bulk_load_moves_vector_values();
     test_spatial_index_bulk_load_then_mutate_matches_brute_force();
+    test_spatial_index_min_fanout_matches_brute_force();
     test_spatial_index_visitor_search_matches_vector_search();
     test_spatial_index_visitor_search_supports_predicates();
     test_spatial_index_visitor_search_stops_early();
