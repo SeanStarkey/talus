@@ -125,7 +125,7 @@ public:
         T* slot_object = block.data + si;
 
         if (object != slot_object || !block.live[si]) {
-            TALUS_ASSERT(false && "destroy: double-destroy or unowned pointer");
+            TALUS_ASSERT_FAIL("destroy: double-destroy or unowned pointer");
             return;
         }
 
@@ -259,7 +259,7 @@ private:
                 return {it->block_index, block.index_of(object)};
             }
         }
-        TALUS_ASSERT(false && "locate: pointer not owned by this pool");
+        TALUS_ASSERT_FAIL("locate: pointer not owned by this pool");
         TALUS_UNREACHABLE();
     }
 

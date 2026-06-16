@@ -146,7 +146,7 @@ template<typename T, typename Scalar, std::size_t MaxChildren>
         }
     }
 
-    TALUS_ASSERT(false && "child is not attached to parent");
+    TALUS_ASSERT_FAIL("child is not attached to parent");
     TALUS_UNREACHABLE();
 }
 
@@ -603,7 +603,7 @@ RTreeInsertResult<RTreeNode<T, Scalar, MaxChildren>> insert(
     TALUS_ASSERT(leaf->is_leaf());
 
     if (!leaf->can_append_entry()) {
-        TALUS_ASSERT(false && "insert requires split handling before appending past overflow");
+        TALUS_ASSERT_FAIL("insert requires split handling before appending past overflow");
         return {leaf, nullptr, false};
     }
 

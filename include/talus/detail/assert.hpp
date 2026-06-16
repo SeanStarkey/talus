@@ -15,11 +15,14 @@
 /// release-mode checks.
 #ifndef NDEBUG
 #  define TALUS_ASSERT(cond) assert(cond)
+#  define TALUS_ASSERT_FAIL(message) assert(false && message)
 #elif defined(TALUS_DISABLE_HARDENED_CHECKS)
 #  define TALUS_ASSERT(cond) ((void)0)
+#  define TALUS_ASSERT_FAIL(message) ((void)0)
 #else
 #  define TALUS_ASSERT(cond) \
      do { if (!(cond)) [[unlikely]] { std::terminate(); } } while (false)
+#  define TALUS_ASSERT_FAIL(message) std::terminate()
 #endif
 
 /// @brief Marks a code path that must never be reached at runtime.
