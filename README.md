@@ -346,6 +346,10 @@ it returns them all; `k == 0` returns an empty vector. The order of equidistant
 values — and which are kept when more than `k` tie at the k-th distance — is
 unspecified.
 
+`nearest_neighbor` (singular) returns the single closest value, or
+`std::nullopt` when the index is empty. When two or more values are equidistant
+at the minimum distance, which one is returned is unspecified.
+
 The visitor overloads of `search`, `within`, and `radius_search` traverse the
 tree without materializing a result vector: the visitor is invoked with
 `const T&` for each match, in unspecified order, so it can filter on arbitrary

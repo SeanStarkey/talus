@@ -389,7 +389,10 @@ public:
     /// @brief Returns the value whose bounds are nearest to `query`, if any.
     ///
     /// Distance is measured from the query point to each stored value's bounds;
-    /// bounded geometries containing the query point have distance zero.
+    /// bounded geometries containing the query point have distance zero. When
+    /// two or more values are equidistant from the query at the minimum
+    /// distance, which one is returned is unspecified. Returns `std::nullopt`
+    /// when the index is empty.
     ///
     /// @throws invalid_geometry if either query coordinate is NaN, infinite, or
     /// beyond `coordinate_limit<Scalar>()`.

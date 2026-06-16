@@ -683,6 +683,37 @@ void test_spatial_index_randomized_nearest_neighbors_matches_brute_force() {
                             oracle.nearest_neighbors(query, 10000));
 }
 
+// Test: test_spatial_index_nearest_neighbor_returns_a_minimum_on_ties
+// Pins the documented equidistant-tie contract for the singular
+// nearest_neighbor: when several values are equidistant from the query at the
+// minimum distance, the call returns one of those minima (never a farther
+// value). Which tied value wins is unspecified — it follows tree-traversal
+// order, not insertion order — but it is stable for a fixed tree, so two calls
+// agree. The randomized nearest tests deliberately offset coordinates to avoid
+// ties, so this is the only place the tie path is exercised. A small fanout
+// forces a split so the tie is resolved across multiple nodes.
+void test_spatial_index_nearest_neighbor_returns_a_minimum_on_ties() {
+    talus::SpatialIndex<PointRecord, double, 4> index;
+    // Four points equidistant (distance 1) from the origin, plus a far point.
+    index.insert(PointRecord{1.0, 0.0, 1});
+    index.insert(PointRecord{-1.0, 0.0, 2});
+    index.insert(PointRecord{0.0, 1.0, 3});
+    index.insert(PointRecord{0.0, -1.0, 4});
+    index.insert(PointRecord{5.0, 5.0, 5});  // distance sqrt(50), never nearest
+
+    const talus::Point<double> query{0.0, 0.0};
+    const auto nearest = index.nearest_neighbor(query);
+    TALUS_CHECK(nearest.has_value());
+
+    // The winner is one of the four tied minima, not the far point ...
+    TALUS_CHECK(nearest->id >= 1 && nearest->id <= 4);
+    // ... and its distance is exactly the minimum (1).
+    TALUS_CHECK(talus::sq_distance(query, talus::Point<double>{nearest->x, nearest->y}) == 1.0);
+
+    // Unspecified which tied value wins, but deterministic for a fixed tree.
+    TALUS_CHECK(index.nearest_neighbor(query)->id == nearest->id);
+}
+
 // Test: test_spatial_index_is_movable
 // Verifies SpatialIndex is move-constructible and move-assignable with the tree
 // intact. The index is built large enough to force a multi-level internal tree,
@@ -1444,6 +1475,7 @@ int main() {
     test_spatial_index_randomized_nearest_neighbor_matches_brute_force();
     test_spatial_index_nearest_neighbors_matches_brute_force_fixture();
     test_spatial_index_randomized_nearest_neighbors_matches_brute_force();
+    test_spatial_index_nearest_neighbor_returns_a_minimum_on_ties();
     test_spatial_index_is_movable();
     test_spatial_index_throws_on_invalid_geometry();
     test_spatial_index_enforces_coordinate_domain();
