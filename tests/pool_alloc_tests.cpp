@@ -270,7 +270,9 @@ void test_reserve_preserves_live_objects() {
 }
 
 // Test: test_move_semantics
-// Verifies moving a pool transfers ownership, live objects, and reusable slots.
+// Verifies moving a pool transfers ownership, live objects, and reusable slots,
+// and that both move construction and move assignment leave the moved-from
+// source empty (size 0, no blocks) rather than reporting stale counters.
 void test_move_semantics() {
     reset_counters();
 
@@ -287,7 +289,11 @@ void test_move_semantics() {
         TALUS_CHECK(a->value == 10);
         TALUS_CHECK(NodeLike::constructed == 2);
         TALUS_CHECK(NodeLike::destroyed == 0);
-        // src is valid but unspecified (defaulted move ctor); only dst owns and destructs the blocks.
+        // The move constructor resets the moved-from source to empty (matching
+        // move assignment); only dst owns and destructs the blocks.
+        TALUS_CHECK(src.size() == 0);
+        TALUS_CHECK(src.empty());
+        TALUS_CHECK(src.block_count() == 0);
     }
     TALUS_CHECK(NodeLike::destroyed == 2);
 

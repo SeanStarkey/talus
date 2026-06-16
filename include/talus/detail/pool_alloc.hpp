@@ -43,7 +43,25 @@ public:
     PoolAllocator& operator=(const PoolAllocator&) = delete;
 
     /// @brief Moves pool storage and live objects without relocating objects.
-    PoolAllocator(PoolAllocator&&) noexcept = default;
+    ///
+    /// Leaves the moved-from source empty (`size() == 0`, no blocks), matching
+    /// the post-condition of move assignment. A defaulted move would transfer
+    /// the vectors but leave the source's `size_`/`current_block_`/`next_slot_`
+    /// counters stale, so the source would report a non-zero `size()` despite
+    /// owning nothing.
+    PoolAllocator(PoolAllocator&& other) noexcept
+        : blocks_(std::move(other.blocks_)),
+          block_map_(std::move(other.block_map_)),
+          free_list_(std::move(other.free_list_)),
+          current_block_(other.current_block_),
+          next_slot_(other.next_slot_),
+          size_(other.size_) {
+        other.block_map_.clear();
+        other.free_list_.clear();
+        other.current_block_ = 0;
+        other.next_slot_ = 0;
+        other.size_ = 0;
+    }
 
     /// @brief Clears this pool and takes ownership of another pool's blocks.
     PoolAllocator& operator=(PoolAllocator&& other) noexcept(std::is_nothrow_destructible_v<T>) {
