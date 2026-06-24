@@ -9,6 +9,8 @@ A zero-dependency, header-only C++20 spatial index library. Drop it in, include 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 
+**Project page:** [seanstarkey.dev/talus.html](https://seanstarkey.dev/talus.html)
+
 > **Status: stable R*-tree API (v1.0.0).** Working today: automatic
 > type detection, custom coordinate extractors for types Talus cannot detect,
 > `insert`, STR bulk loading with `bulk_load`, rectangle
