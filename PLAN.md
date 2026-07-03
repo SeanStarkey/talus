@@ -67,8 +67,10 @@ not merely a large new feature.
   new headers, no change to the R*-tree / `SpatialIndex` API, so it is a minor
   bump. Shipping the R*-tree first also lets its API settle before the k-d
   tree mirrors that surface for interchangeability.
-- **1.x** — serialization (save/load) and lossless `erase` (section 11). Also
-  additive.
+- **1.x** — serialization (save/load), lazy query ranges, PMR memory-resource
+  support, and lossless `erase` (section 11). All additive. The verification
+  hardening in section 12 has no API surface at all, so it can land in any
+  release, including before 1.1.
 - **2.0** — N-dimensional points and boxes (section 11). The genuine major
   bump: a foundational rewrite of `geometry.hpp` and `concepts.hpp` that
   reshapes the public geometry API.
@@ -225,6 +227,14 @@ choice for static point datasets and nearest-neighbor-heavy workloads.
   packed — simplest and fastest to query) vs dynamic (insert/erase). Suggested
   scope for 1.1: build-from-range plus queries; defer dynamic mutation unless
   it falls out naturally.
+- Make the k-d tree the data-oriented counterpoint to the R*-tree, and say so
+  in the README: static implicit-layout, array-packed nodes (contiguous
+  storage, no per-node allocation, no parent/child pointers), iterative
+  stack-based queries rather than recursion, and construction from any
+  `std::ranges::input_range`. The R*-tree demonstrates the pointer-based,
+  cache-line-conscious school; the k-d tree should demonstrate the
+  contiguous-layout school, with the comparative benchmarks above backing the
+  contrast with numbers.
 - `include/talus/detail/kdtree_*.hpp` — node layout and build/query
   algorithms, mirroring the `detail/` split used by the R-tree.
 - Public wrapper (e.g. `KdTree<T, Scalar, Extractor>` in
@@ -253,8 +263,13 @@ choice for static point datasets and nearest-neighbor-heavy workloads.
 
 ### 11. Longer-range / exploratory (post-1.0)
 
-These are larger, lower-priority efforts surfaced in the README "Why Talus"
-comparison. They are intentionally deferred until after the 1.0 release.
+Additive post-1.0 work, intentionally deferred until after the 1.0 release.
+Serialization, lossless `erase`, and N-dimensional geometry were surfaced in
+the README "Why Talus" comparison; lazy query ranges and PMR support are
+self-contained API additions. Suggested order within this section:
+serialization first (it pairs naturally with the STR bulk loader already in
+place), then lazy query ranges and PMR support, then lossless `erase`, with
+N-dimensional geometry last as the 2.0 rewrite.
 
 - **Index serialization (save/load).** Pairs naturally with STR bulk load (load
   = read entries, bulk-build). The node layout already cooperates: entries are
@@ -265,6 +280,24 @@ comparison. They are intentionally deferred until after the 1.0 release.
   serialize/deserialize hook (same escape-hatch pattern as `CoordExtractor`) for
   richer payloads. Additive — a new `save()`/`load()` on `SpatialIndex` plus
   tests; no rewrite.
+- **Lazy query ranges.** A third query form alongside the vector-returning and
+  visitor overloads: `index.query(box)` (and a radius variant) returning a
+  lazy `std::ranges::forward_range` — a custom iterator holding an explicit
+  traversal stack, `std::default_sentinel_t` as the end marker, and
+  `std::ranges::view_interface` for the range shell — so callers can compose
+  with `std::views` pipelines and stop early with no allocation or copying.
+  The design work is the iterator contract: `std::forward_iterator`
+  conformance, const-correctness, and documented invalidation (any mutation
+  invalidates outstanding query ranges, consistent with the existing
+  thread-safety note). Distinct from the whole-index iteration rejected in
+  section 9 — this iterates query results, not the index. Additive (1.x).
+- **PMR memory-resource support.** `PoolAllocator` blocks currently come
+  straight from `::operator new`; thread an upstream
+  `std::pmr::memory_resource*` through block allocation (defaulting to
+  `std::pmr::get_default_resource()`), exposed as an optional `SpatialIndex`
+  constructor argument, so users can back an entire index with an arena or
+  observe allocations in tests. `<memory_resource>` is standard-library-only,
+  so the zero-dependency constraint holds. Additive (1.x).
 - **Lossless `erase` under allocation failure.** Today `erase` gives the basic
   guarantee: on `bad_alloc` mid-condense, detached entries may be dropped
   (size stays accurate). Upgrading to "no entry loss" means pre-reserving
@@ -295,9 +328,40 @@ comparison. They are intentionally deferred until after the 1.0 release.
   node stores `MaxChildren` boxes, so node size scales with `MaxChildren × N`
   and spills multiple lines as N grows.
 
+### 12. Verification Hardening (sequencing-independent)
+
+Cross-cutting robustness work with no public API surface, so it can land in
+any release, before or interleaved with the k-d tree.
+
+- **ThreadSanitizer CI lane plus a concurrent-query test.** The thread-safety
+  contract (concurrent `const` queries are safe) is documented in `rtree.hpp`
+  but never verified. Add a test that runs `search`, `radius_search`,
+  `nearest_neighbor`, and `nearest_neighbors` from several `std::jthread`s
+  against one shared index, and run it under `-fsanitize=thread` in a new CI
+  job beside the ASan/UBSan and Valgrind lanes. TSan is incompatible with
+  ASan, so it needs its own build configuration, as Valgrind does.
+- **Coverage-guided fuzz harness.** A libFuzzer target behind an opt-in
+  `TALUS_BUILD_FUZZERS` CMake option (clang-only, defaulting OFF like the
+  other opt-in lanes) that decodes fuzz input into a bounded op sequence —
+  insert / erase / search / radius_search / NN / k-NN / bulk_load / clear —
+  executed against both `SpatialIndex` and the `BruteForceIndex` oracle,
+  diffing results and checking tree invariants after every op. Complements
+  the fixed-seed randomized stress tests with coverage-guided input
+  generation, and composes with the existing sanitizer builds.
+- **Compile-time tests for the constexpr geometry surface.** `geometry.hpp`
+  advertises constexpr-friendliness but nothing enforces it. Add a block of
+  `static_assert` tests (containment, intersection, expand, area, margin,
+  enlarged area, center, min squared distance) so a constexpr regression
+  fails to compile. Make `BoundingBox::is_valid()` constexpr while there:
+  `std::isfinite` is not constexpr until C++23, but a self-comparison NaN
+  check plus `numeric_limits` infinity comparisons is a portable C++20
+  equivalent. Behavior-neutral.
+
 ## Next Concrete Task
 
 Sections 1–9 are complete, including the large stress tests (section 6) and 1.0
 release-readiness gates (section 9). The R*-tree is feature-complete, so the
 next focus is the k-d tree (section 10), scheduled for 1.1 per the Versioning
-and Release Sequencing plan.
+and Release Sequencing plan. The verification-hardening items in section 12
+(TSan lane, fuzz harness, constexpr `static_assert` tests) have no API surface
+and can be picked up at any point alongside that work.
